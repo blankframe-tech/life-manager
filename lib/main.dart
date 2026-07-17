@@ -18,10 +18,18 @@ Future<void> main() async {
 
   // Cloud (optional — the app is fully usable offline without keys).
   if (SupabaseConfig.isConfigured) {
-    await Supabase.initialize(
-      url: SupabaseConfig.url,
-      anonKey: SupabaseConfig.anonKey,
-    );
+    if (SupabaseConfig.isPublishableKey) {
+      await Supabase.initialize(
+        url: SupabaseConfig.url,
+        publishableKey: SupabaseConfig.anonKey,
+      );
+    } else {
+      await Supabase.initialize(
+        url: SupabaseConfig.url,
+        // ignore: deprecated_member_use — legacy anon JWT fallback.
+        anonKey: SupabaseConfig.anonKey,
+      );
+    }
   }
 
   // Local DB — the source of truth the UI renders from.

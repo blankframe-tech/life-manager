@@ -13,9 +13,15 @@
 /// it out of git keeps the repo clean.
 class SupabaseConfig {
   static const url = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+
+  /// The client key — either a modern publishable key (`sb_publishable_…`) or a
+  /// legacy anon JWT (`eyJ…`). Both are public, client-safe keys.
   static const anonKey =
       String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
 
   /// True only when both values were provided at build time.
   static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
+
+  /// Modern keys are passed via `publishableKey`; legacy JWTs via `anonKey`.
+  static bool get isPublishableKey => anonKey.startsWith('sb_');
 }
