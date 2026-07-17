@@ -1,0 +1,40 @@
+name: life_manager
+description: "Blankframe — a fast, offline-first personal life manager (budget, dealings, tasks, buy lists, dreams) that syncs across devices."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  # Maintained community fork of Isar — official isar 3.1.0 ships a 2023-era
+  # analyzer whose generator cannot parse Dart 3.12 syntax. Same API.
+  isar_community: ^3.3.2
+  isar_community_flutter_libs: ^3.3.2
+  path_provider: ^2.1.4
+  supabase_flutter: ^2.5.6
+  uuid: ^4.4.0
+  intl: ^0.19.0
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.4.11
+  isar_community_generator: ^3.3.2
+
+dependency_overrides:
+  # Pin below the native-assets migration (2.5.0+ pulls the Apple-only
+  # `objective_c` build hook, which crashes `flutter test`/`build` when the
+  # Dart SDK install path contains a space — an upstream Dart bug). 2.3.2 is
+  # the floor `path_provider` allows and works identically for our needs.
+  path_provider_foundation: 2.3.2
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/seed/

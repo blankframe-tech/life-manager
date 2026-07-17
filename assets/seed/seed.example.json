@@ -1,0 +1,21 @@
+{
+  "_comment": "Sample seed with fake data. Copy to `seed.json` (git-ignored) and replace with your own to bootstrap the app on first launch. All amounts are in whole taka.",
+  "items": [
+    { "kind": "deal", "direction": "i_owe", "amount": 2000, "title": "Bank loan 2k" },
+    { "kind": "deal", "direction": "they_owe", "amount": 400, "title": "Jane Doe 400" },
+
+    { "kind": "budget", "category": "needs", "amount": 10000, "title": "Rent 10k (utilities, groceries)" },
+    { "kind": "budget", "category": "needs", "amount": 5000, "title": "Transport 5k" },
+    { "kind": "budget", "category": "wants", "amount": 3500, "title": "Gym 3.5k" },
+    { "kind": "budget", "category": "savings", "amount": 5000, "title": "Emergency fund 5k a month" },
+
+    { "kind": "task", "section": "time", "title": "Meet Jane 31 July", "dueDate": "2026-07-31" },
+    { "kind": "task", "section": "admin", "title": "Renew passport" },
+    { "kind": "task", "section": "declutter", "title": "Sort books and clothes, donate the rest" },
+
+    { "kind": "buy", "section": "p0", "title": "Powerbank 1.5k" },
+    { "kind": "buy", "section": "wishlist", "title": "Mechanical keyboard 5k" },
+
+    { "kind": "dream", "title": "Home NAS server + local LLM box" }
+  ]
+}
