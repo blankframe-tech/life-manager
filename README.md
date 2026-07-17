@@ -49,14 +49,20 @@ dart run build_runner build            # generates lib/models/item.g.dart
 flutter run                            # local-only (no cloud) — works out of the box
 ```
 
-To enable cloud sync, pass your Supabase keys at build/run time (kept out of
-source on purpose):
+To enable cloud sync, put your keys in a `.env` file (kept out of source) and
+use the launch script, which reads `.env` and passes the keys to Flutter:
 
 ```bash
-flutter run \
-  --dart-define=SUPABASE_URL=https://YOUR-PROJECT.supabase.co \
-  --dart-define=SUPABASE_ANON_KEY=YOUR_ANON_KEY
+cp .env.example .env      # then fill in SUPABASE_URL and SUPABASE_ANON_KEY
+./run.ps1                 # Windows
+./run.sh                  # macOS / Linux   (pass -d <device> to target one)
 ```
+
+Get the two values from the Supabase dashboard → **Project Settings → API**:
+`SUPABASE_URL` = the *Project URL*, `SUPABASE_ANON_KEY` = the *anon public* key.
+(The database password is **not** used by the client app.) You can also skip
+`.env` and pass `--dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=...`
+directly. With no keys, the app runs fully offline (local-only).
 
 ### Supabase setup (once)
 
