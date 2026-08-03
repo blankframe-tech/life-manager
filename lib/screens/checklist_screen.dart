@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/item.dart';
@@ -33,23 +34,60 @@ class ChecklistScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(itemsProvider(kind));
+    final query = ref.watch(searchQueryProvider(kind));
+    final hideDone = ref.watch(hideDoneProvider(kind));
     return async.when(
-      loading: () => const Center(child: CupertinoActivityIndicator()),
-      error: (e, _) => Center(child: Text('$e')),
-      data: (items) {
-        if (items.isEmpty) {
-          return emptyState(emptyIcon, emptyTitle, emptySubtitle);
+      loading: () => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+        children: const [LoadingSkeleton()],
+      ),
+      error: (e, _) => errorState(context, () => ref.invalidate(itemsProvider(kind))),
+      data: (all) {
+        final searched = filterBySearch(all, query);
+        if (searched.isEmpty) {
+          return emptyState(
+            emptyIcon,
+            emptyTitle,
+            emptySubtitle,
+            onAction: () => showItemEditor(context, ref, kind),
+            actionLabel: 'Add',
+          );
         }
+        final items =
+            hideDone ? searched.where((i) => !i.done).toList() : searched;
+        final doneCount = searched.where((i) => i.done).length;
         return ListView(
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 96),
           children: [
+            if (doneCount > 0) _hideDoneToggle(context, ref, doneCount),
             for (final g in groups)
               ..._groupBlock(context, ref, g, _forGroup(items, g.section)),
             ..._ungrouped(context, ref, items),
           ],
         );
       },
+    );
+  }
+
+  Widget _hideDoneToggle(BuildContext context, WidgetRef ref, int doneCount) {
+    final hideDone = ref.watch(hideDoneProvider(kind));
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text('$doneCount completed',
+                style: TextStyle(fontSize: 13, color: context.colors.inkSub)),
+          ),
+          Text('Hide completed',
+              style: TextStyle(fontSize: 13, color: context.colors.inkSub)),
+          Switch(
+            value: hideDone,
+            onChanged: (v) => ref.read(hideDoneProvider(kind).notifier).state = v,
+          ),
+        ],
+      ),
     );
   }
 
@@ -76,11 +114,11 @@ class ChecklistScreen extends ConsumerWidget {
     if (items.isEmpty) return [];
     final remaining = items.where((i) => !i.done).length;
     return [
-      groupHeader(g.label, trailing: '$remaining left'),
-      cardGroup([
+      groupHeader(context, g.label, trailing: '$remaining left'),
+      cardGroup(context, [
         for (var i = 0; i < items.length; i++) ...[
           _row(context, ref, items[i]),
-          if (i != items.length - 1) rowDivider(),
+          if (i != items.length - 1) rowDivider(context),
         ],
       ]),
     ];
@@ -88,10 +126,13 @@ class ChecklistScreen extends ConsumerWidget {
 
   Widget _row(BuildContext context, WidgetRef ref, Item item) {
     final section = sectionFor(kind);
+    final c = context.colors;
     return DeletableRow(
       item: item,
+      semanticLabel:
+          '${item.title}${item.done ? ', done' : ''}${item.dueDate != null ? ', due ${shortDate(item.dueDate!)}' : ''}',
       child: Material(
-        color: AppColors.card,
+        color: c.card,
         child: InkWell(
           onTap: () => showItemEditor(context, ref, kind, existing: item),
           child: Padding(
@@ -99,19 +140,32 @@ class ChecklistScreen extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                GestureDetector(
-                  onTap: () {
-                    item.done = !item.done;
-                    ref.read(syncServiceProvider).save(item);
-                  },
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 12, top: 1),
-                    child: Icon(
-                      item.done
-                          ? CupertinoIcons.check_mark_circled_solid
-                          : CupertinoIcons.circle,
-                      color: item.done ? section.color : AppColors.hair,
-                      size: 24,
+                Semantics(
+                  label: item.done ? 'Mark as not done' : 'Mark as done',
+                  button: true,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      item.done = !item.done;
+                      ref.read(syncServiceProvider).save(item);
+                    },
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 1),
+                          child: Icon(
+                            item.done
+                                ? CupertinoIcons.check_mark_circled_solid
+                                : CupertinoIcons.circle,
+                            color: item.done ? section.color : c.hair,
+                            size: 24,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -124,7 +178,7 @@ class ChecklistScreen extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 15,
                           height: 1.3,
-                          color: item.done ? AppColors.inkSub : AppColors.ink,
+                          color: item.done ? c.inkSub : c.ink,
                           decoration: item.done
                               ? TextDecoration.lineThrough
                               : null,
@@ -133,12 +187,11 @@ class ChecklistScreen extends ConsumerWidget {
                       if (item.note.isNotEmpty) ...[
                         const SizedBox(height: 3),
                         Text(item.note,
-                            style: const TextStyle(
-                                fontSize: 13, color: AppColors.inkSub)),
+                            style: TextStyle(fontSize: 13, color: c.inkSub)),
                       ],
                       if (item.dueDate != null) ...[
                         const SizedBox(height: 6),
-                        _dueBadge(item.dueDate!),
+                        _dueBadge(context, item.dueDate!),
                       ],
                     ],
                   ),
@@ -157,10 +210,10 @@ class ChecklistScreen extends ConsumerWidget {
     );
   }
 
-  Widget _dueBadge(DateTime due) {
+  Widget _dueBadge(BuildContext context, DateTime due) {
     final now = DateTime.now();
     final soon = due.difference(now).inDays <= 3;
-    final color = soon ? AppColors.rose : AppColors.inkSub;
+    final color = soon ? AppColors.rose : context.colors.inkSub;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(

@@ -10,6 +10,7 @@ import 'budget_screen.dart';
 import 'checklist_screen.dart';
 import 'dealings_screen.dart';
 import 'dreams_screen.dart';
+import 'settings_screen.dart';
 
 /// The app shell: a bottom tab bar over the five sections. Screens stay mounted
 /// (IndexedStack) so switching tabs never resets scroll or in-progress input.
@@ -22,6 +23,20 @@ class RootScaffold extends ConsumerStatefulWidget {
 
 class _RootScaffoldState extends ConsumerState<RootScaffold> {
   int _index = 0;
+  bool _searchOpen = false;
+  final _searchCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  void _closeSearch(String kind) {
+    _searchCtrl.clear();
+    ref.read(searchQueryProvider(kind).notifier).state = '';
+    setState(() => _searchOpen = false);
+  }
 
   static const _screens = [
     BudgetScreen(),
@@ -54,16 +69,44 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
   Widget build(BuildContext context) {
     final section = kSections[_index];
     final online = ref.watch(syncOnlineProvider);
+    final c = context.colors;
     return Scaffold(
       appBar: AppBar(
-        title: Text(section.label),
+        title: _searchOpen
+            ? TextField(
+                controller: _searchCtrl,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration.collapsed(hintText: 'Search'),
+                onChanged: (v) =>
+                    ref.read(searchQueryProvider(section.kind).notifier).state = v,
+              )
+            : Text(section.label),
         actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Icon(
-              online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
-              size: 20,
-              color: online ? AppColors.green : AppColors.inkSub,
+          IconButton(
+            tooltip: _searchOpen ? 'Close search' : 'Search',
+            icon: Icon(_searchOpen ? CupertinoIcons.xmark : CupertinoIcons.search,
+                size: 20),
+            onPressed: () => _searchOpen
+                ? _closeSearch(section.kind)
+                : setState(() => _searchOpen = true),
+          ),
+          Semantics(
+            label: online ? 'Sync online' : 'Sync offline',
+            child: Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: Icon(
+                online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
+                size: 20,
+                color: online ? AppColors.green : c.inkSub,
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(CupertinoIcons.gear, size: 22),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SettingsScreen()),
             ),
           ),
         ],
@@ -77,7 +120,7 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
       ),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
-          backgroundColor: Colors.white,
+          backgroundColor: c.card,
           indicatorColor: section.color.withValues(alpha: 0.14),
           labelTextStyle: WidgetStateProperty.all(
             const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
@@ -86,7 +129,10 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
         child: NavigationBar(
           height: 64,
           selectedIndex: _index,
-          onDestinationSelected: (i) => setState(() => _index = i),
+          onDestinationSelected: (i) {
+            if (_searchOpen) _closeSearch(section.kind);
+            setState(() => _index = i);
+          },
           destinations: [
             for (final s in kSections)
               NavigationDestination(

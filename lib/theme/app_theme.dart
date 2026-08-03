@@ -3,22 +3,83 @@ import 'package:flutter/material.dart';
 
 import '../models/item.dart';
 
-/// Central palette + per-section metadata. iOS-first look: soft grouped
-/// background, white cards, rounded corners, restrained accent colours.
+/// Section-brand accent colours — same hex in light and dark (checked for
+/// 4.5:1 contrast against both surface tones).
 class AppColors {
-  static const bg = Color(0xFFF2F2F7); // iOS system grouped background
-  static const card = Colors.white;
-  static const ink = Color(0xFF1C1C1E); // primary label
-  static const inkSub = Color(0xFF8E8E93); // secondary label
-  static const hair = Color(0xFFE5E5EA); // separator
-
   static const indigo = Color(0xFF5B5BD6); // budget / brand
   static const teal = Color(0xFF14B8A6); // credit / they owe me
-  static const rose = Color(0xFFF43F5E); // debt / i owe
+  static const rose = Color(0xFFF43F5E); // debt / i owe / destructive
   static const orange = Color(0xFFF97316); // tasks
   static const violet = Color(0xFF8B5CF6); // buy
   static const pink = Color(0xFFEC4899); // dreams
-  static const green = Color(0xFF22C55E); // done / synced
+  static const green = Color(0xFF22C55E); // done / synced / online
+}
+
+/// Theme-aware surface/text tokens (light vs dark). Access via
+/// `context.colors` — never reference these hex values directly in widgets.
+class AppSurface extends ThemeExtension<AppSurface> {
+  const AppSurface({
+    required this.bg,
+    required this.card,
+    required this.ink,
+    required this.inkSub,
+    required this.hair,
+  });
+
+  final Color bg;
+  final Color card;
+  final Color ink;
+  final Color inkSub;
+  final Color hair;
+
+  static const light = AppSurface(
+    bg: Color(0xFFF2F2F7),
+    card: Colors.white,
+    ink: Color(0xFF1C1C1E),
+    inkSub: Color(0xFF8E8E93),
+    hair: Color(0xFFE5E5EA),
+  );
+
+  static const dark = AppSurface(
+    bg: Color(0xFF0F172A),
+    card: Color(0xFF192134),
+    ink: Color(0xFFF8FAFC),
+    inkSub: Color(0xFF94A3B8),
+    hair: Color(0x14FFFFFF),
+  );
+
+  @override
+  AppSurface copyWith({
+    Color? bg,
+    Color? card,
+    Color? ink,
+    Color? inkSub,
+    Color? hair,
+  }) {
+    return AppSurface(
+      bg: bg ?? this.bg,
+      card: card ?? this.card,
+      ink: ink ?? this.ink,
+      inkSub: inkSub ?? this.inkSub,
+      hair: hair ?? this.hair,
+    );
+  }
+
+  @override
+  AppSurface lerp(ThemeExtension<AppSurface>? other, double t) {
+    if (other is! AppSurface) return this;
+    return AppSurface(
+      bg: Color.lerp(bg, other.bg, t)!,
+      card: Color.lerp(card, other.card, t)!,
+      ink: Color.lerp(ink, other.ink, t)!,
+      inkSub: Color.lerp(inkSub, other.inkSub, t)!,
+      hair: Color.lerp(hair, other.hair, t)!,
+    );
+  }
+}
+
+extension AppSurfaceX on BuildContext {
+  AppSurface get colors => Theme.of(this).extension<AppSurface>()!;
 }
 
 /// Describes one bottom-nav destination (which is one [ItemKind]).
@@ -47,23 +108,27 @@ const kSections = <Section>[
 Section sectionFor(String kind) =>
     kSections.firstWhere((s) => s.kind == kind, orElse: () => kSections.first);
 
-/// App-wide Material theme, tuned to feel native on iOS.
-ThemeData buildTheme() {
+/// App-wide Material theme, tuned to feel native on iOS. Pass [Brightness.dark]
+/// for the dark variant — both share the same shape, only tokens differ.
+ThemeData buildTheme({Brightness brightness = Brightness.light}) {
+  final surface = brightness == Brightness.dark ? AppSurface.dark : AppSurface.light;
   final base = ThemeData(
     useMaterial3: true,
+    brightness: brightness,
     colorSchemeSeed: AppColors.indigo,
-    scaffoldBackgroundColor: AppColors.bg,
+    scaffoldBackgroundColor: surface.bg,
     fontFamily: '.SF Pro Text',
+    extensions: [surface],
   );
   return base.copyWith(
-    appBarTheme: const AppBarTheme(
-      backgroundColor: AppColors.bg,
+    appBarTheme: AppBarTheme(
+      backgroundColor: surface.bg,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       centerTitle: true,
-      foregroundColor: AppColors.ink,
+      foregroundColor: surface.ink,
       titleTextStyle: TextStyle(
-        color: AppColors.ink,
+        color: surface.ink,
         fontSize: 17,
         fontWeight: FontWeight.w600,
       ),
@@ -78,14 +143,14 @@ ThemeData buildTheme() {
 }
 
 /// Rounded-rect "card group" decoration used throughout the lists.
-BoxDecoration cardDecoration() => BoxDecoration(
-      color: AppColors.card,
+BoxDecoration cardDecoration(BuildContext context) => BoxDecoration(
+      color: context.colors.card,
       borderRadius: BorderRadius.circular(14),
-      boxShadow: const [
+      boxShadow: [
         BoxShadow(
-          color: Color(0x0F000000),
+          color: Colors.black.withValues(alpha: 0.06),
           blurRadius: 12,
-          offset: Offset(0, 4),
+          offset: const Offset(0, 4),
         ),
       ],
     );

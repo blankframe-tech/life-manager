@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/supabase_config.dart';
@@ -39,23 +40,31 @@ Future<void> main() async {
   // One-time bootstrap from the bundled seed (if present).
   await SeedLoader.seedIfNeeded(isar);
 
+  final prefs = await SharedPreferences.getInstance();
+
   runApp(
     ProviderScope(
-      overrides: [isarProvider.overrideWithValue(isar)],
+      overrides: [
+        isarProvider.overrideWithValue(isar),
+        sharedPreferencesProvider.overrideWithValue(prefs),
+      ],
       child: const LifeManagerApp(),
     ),
   );
 }
 
-class LifeManagerApp extends StatelessWidget {
+class LifeManagerApp extends ConsumerWidget {
   const LifeManagerApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
     return MaterialApp(
       title: 'Life Manager',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
+      darkTheme: buildTheme(brightness: Brightness.dark),
+      themeMode: themeMode,
       home: const RootScaffold(),
     );
   }

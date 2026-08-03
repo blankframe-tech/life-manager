@@ -9,9 +9,6 @@ import '../util/format.dart';
 import '../widgets/common.dart';
 import '../widgets/item_editor.dart';
 
-/// Monthly take-home used for the 65/20/15 ideal split.
-const kMonthlySalary = 40000.0;
-
 const _plan = {
   BudgetCategory.needs: (label: 'Needs', pct: 0.65),
   BudgetCategory.wants: (label: 'Wants', pct: 0.15),
@@ -24,10 +21,17 @@ class BudgetScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(itemsProvider(ItemKind.budget));
+    final salary = ref.watch(monthlySalaryProvider);
+    final query = ref.watch(searchQueryProvider(ItemKind.budget));
     return async.when(
-      loading: () => const Center(child: CupertinoActivityIndicator()),
-      error: (e, _) => Center(child: Text('$e')),
-      data: (items) {
+      loading: () => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+        children: const [LoadingSkeleton()],
+      ),
+      error: (e, _) =>
+          errorState(context, () => ref.invalidate(itemsProvider(ItemKind.budget))),
+      data: (all) {
+        final items = filterBySearch(all, query);
         double planned(String cat) => items
             .where((i) => i.category == cat)
             .fold(0.0, (s, i) => s + (i.amount ?? 0));
@@ -36,7 +40,7 @@ class BudgetScreen extends ConsumerWidget {
           physics: const BouncingScrollPhysics(),
           padding: const EdgeInsets.only(bottom: 96),
           children: [
-            _summaryCard(planned),
+            _summaryCard(context, salary, planned),
             for (final entry in _plan.entries)
               _categoryBlock(context, ref, entry.key, entry.value.label,
                   items.where((i) => i.category == entry.key).toList()),
@@ -46,30 +50,98 @@ class BudgetScreen extends ConsumerWidget {
     );
   }
 
-  Widget _summaryCard(double Function(String) planned) {
+  Widget _summaryCard(
+      BuildContext context, double salary, double Function(String) planned) {
+    final c = context.colors;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       padding: const EdgeInsets.all(18),
-      decoration: cardDecoration(),
+      decoration: cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Monthly salary',
-              style: TextStyle(color: AppColors.inkSub, fontSize: 13)),
+          Text('Monthly salary',
+              style: TextStyle(color: c.inkSub, fontSize: 13)),
           const SizedBox(height: 2),
-          Text(money(kMonthlySalary),
+          Text(money(salary),
               style: const TextStyle(
                   fontSize: 30, fontWeight: FontWeight.w800)),
           const SizedBox(height: 16),
+          _stackedProportionBar(context, salary, planned),
+          const SizedBox(height: 16),
           for (final e in _plan.entries)
-            _planRow(e.value.label, e.value.pct, planned(e.key)),
+            _planRow(context, e.value.label, e.value.pct, salary, planned(e.key)),
         ],
       ),
     );
   }
 
-  Widget _planRow(String label, double pct, double actual) {
-    final ideal = kMonthlySalary * pct;
+  /// At-a-glance 100%-stacked bar of actual spend share across the 3
+  /// categories — a plain Row of flex segments reads just as clearly as a
+  /// chart-library stacked bar for exactly 3 values, with zero added
+  /// dependency weight and direct on-bar % labels (never color-only).
+  Widget _stackedProportionBar(
+      BuildContext context, double salary, double Function(String) planned) {
+    final totals = {for (final k in _plan.keys) k: planned(k)};
+    final sum = totals.values.fold(0.0, (a, b) => a + b);
+    if (sum <= 0) return const SizedBox.shrink();
+    final colors = {
+      BudgetCategory.needs: AppColors.indigo,
+      BudgetCategory.wants: AppColors.orange,
+      BudgetCategory.savings: AppColors.teal,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: SizedBox(
+            height: 12,
+            child: Row(
+              children: [
+                for (final k in _plan.keys)
+                  if (totals[k]! > 0)
+                    Expanded(
+                      flex: (totals[k]! * 1000 / sum).round().clamp(1, 1000),
+                      child: Container(color: colors[k]),
+                    ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 14,
+          runSpacing: 4,
+          children: [
+            for (final k in _plan.keys)
+              if (totals[k]! > 0)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                            color: colors[k], shape: BoxShape.circle)),
+                    const SizedBox(width: 5),
+                    Text(
+                      '${_plan[k]!.label} ${(totals[k]! / sum * 100).round()}%',
+                      style:
+                          TextStyle(fontSize: 12, color: context.colors.inkSub),
+                    ),
+                  ],
+                ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _planRow(BuildContext context, String label, double pct, double salary,
+      double actual) {
+    final c = context.colors;
+    final ideal = salary * pct;
     final over = actual > ideal;
     final ratio = ideal == 0 ? 0.0 : (actual / ideal).clamp(0.0, 1.0);
     return Padding(
@@ -84,12 +156,16 @@ class BudgetScreen extends ConsumerWidget {
                     style: const TextStyle(
                         fontWeight: FontWeight.w600, fontSize: 14)),
               ),
+              if (over) ...[
+                const Icon(CupertinoIcons.arrow_up, size: 12, color: AppColors.rose),
+                const SizedBox(width: 2),
+              ],
               Text(
                 '${money(actual)} / ${money(ideal)}',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: over ? AppColors.rose : AppColors.inkSub,
+                  color: over ? AppColors.rose : c.inkSub,
                 ),
               ),
             ],
@@ -100,7 +176,7 @@ class BudgetScreen extends ConsumerWidget {
             child: LinearProgressIndicator(
               value: ratio,
               minHeight: 7,
-              backgroundColor: AppColors.hair,
+              backgroundColor: c.hair,
               valueColor: AlwaysStoppedAnimation(
                   over ? AppColors.rose : AppColors.indigo),
             ),
@@ -116,18 +192,18 @@ class BudgetScreen extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        groupHeader(label, trailing: total > 0 ? money(total) : null),
+        groupHeader(context, label, trailing: total > 0 ? money(total) : null),
         if (items.isEmpty)
-          cardGroup([
+          cardGroup(context, [
             _addTile(context, ref, cat, label),
           ])
         else
-          cardGroup([
+          cardGroup(context, [
             for (var i = 0; i < items.length; i++) ...[
               _budgetRow(context, ref, items[i]),
-              if (i != items.length - 1) rowDivider(),
+              if (i != items.length - 1) rowDivider(context),
             ],
-            rowDivider(),
+            rowDivider(context),
             _addTile(context, ref, cat, label),
           ]),
       ],
@@ -137,8 +213,10 @@ class BudgetScreen extends ConsumerWidget {
   Widget _budgetRow(BuildContext context, WidgetRef ref, Item item) {
     return DeletableRow(
       item: item,
+      semanticLabel:
+          '${item.title}${item.amount != null ? ', ${money(item.amount)}' : ''}',
       child: Material(
-        color: AppColors.card,
+        color: context.colors.card,
         child: InkWell(
           onTap: () =>
               showItemEditor(context, ref, ItemKind.budget, existing: item),
@@ -154,7 +232,9 @@ class BudgetScreen extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Text(money(item.amount),
                       style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w600)),
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          fontFeatures: [FontFeature.tabularFigures()])),
                 ],
               ],
             ),
@@ -167,7 +247,7 @@ class BudgetScreen extends ConsumerWidget {
   Widget _addTile(
       BuildContext context, WidgetRef ref, String cat, String label) {
     return Material(
-      color: AppColors.card,
+      color: context.colors.card,
       child: InkWell(
         onTap: () => showItemEditor(context, ref, ItemKind.budget,
             initialCategory: cat),

@@ -1,4 +1,6 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -90,6 +92,7 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
   Future<void> _save() async {
     final title = _title.text.trim();
     if (title.isEmpty) return;
+    HapticFeedback.lightImpact();
     final sync = ref.read(syncServiceProvider);
     final item = widget.existing ?? (Item()..uuid = const Uuid().v4());
     item.kind = widget.kind;
@@ -110,13 +113,14 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
   @override
   Widget build(BuildContext context) {
     final section = sectionFor(widget.kind);
+    final c = context.colors;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Container(
-        decoration: const BoxDecoration(
-          color: AppColors.bg,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        decoration: BoxDecoration(
+          color: c.bg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         ),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: SingleChildScrollView(
@@ -130,15 +134,15 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
                   height: 5,
                   margin: const EdgeInsets.only(bottom: 14),
                   decoration: BoxDecoration(
-                    color: AppColors.hair,
+                    color: c.hair,
                     borderRadius: BorderRadius.circular(3),
                   ),
                 ),
               ),
               Text(
                 '${_isEdit ? 'Edit' : 'New'} ${section.label}',
-                style: const TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700),
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.w700, color: c.ink),
               ),
               const SizedBox(height: 14),
               _field(_title, 'Title', autofocus: !_isEdit, maxLines: 2),
@@ -229,7 +233,7 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
-        fillColor: AppColors.card,
+        fillColor: context.colors.card,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
@@ -240,35 +244,35 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     );
   }
 
+  /// Native Cupertino segmented control — animated selection, correct
+  /// accessibility semantics out of the box (replaces a hand-rolled Wrap of
+  /// GestureDetectors that had no press feedback or a11y traits).
   Widget _segmented(
       Map<String, String> options, String? value, ValueChanged<String> onTap) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: options.entries.map((e) {
-        final selected = e.key == value;
-        return GestureDetector(
-          onTap: () => onTap(e.key),
-          child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            decoration: BoxDecoration(
-              color: selected
-                  ? sectionFor(widget.kind).color
-                  : AppColors.card,
-              borderRadius: BorderRadius.circular(20),
-            ),
+    return CupertinoSlidingSegmentedControl<String>(
+      groupValue: value,
+      backgroundColor: context.colors.card,
+      thumbColor: sectionFor(widget.kind).color,
+      children: {
+        for (final e in options.entries)
+          e.key: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
             child: Text(
               e.value,
               style: TextStyle(
-                color: selected ? Colors.white : AppColors.ink,
+                color: e.key == value ? Colors.white : context.colors.ink,
                 fontWeight: FontWeight.w600,
-                fontSize: 14,
+                fontSize: 13,
               ),
             ),
           ),
-        );
-      }).toList(),
+      },
+      onValueChanged: (v) {
+        if (v != null) {
+          HapticFeedback.selectionClick();
+          onTap(v);
+        }
+      },
     );
   }
 
@@ -280,7 +284,7 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
             _dueDate == null
                 ? 'No due date'
                 : 'Due ${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}',
-            style: const TextStyle(color: AppColors.inkSub, fontSize: 15),
+            style: TextStyle(color: context.colors.inkSub, fontSize: 15),
           ),
         ),
         if (_dueDate != null)

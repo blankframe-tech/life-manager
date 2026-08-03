@@ -14,13 +14,24 @@ class DreamsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(itemsProvider(ItemKind.dream));
+    final query = ref.watch(searchQueryProvider(ItemKind.dream));
     return async.when(
-      loading: () => const Center(child: CupertinoActivityIndicator()),
-      error: (e, _) => Center(child: Text('$e')),
-      data: (items) {
+      loading: () => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+        children: const [LoadingSkeleton()],
+      ),
+      error: (e, _) =>
+          errorState(context, () => ref.invalidate(itemsProvider(ItemKind.dream))),
+      data: (all) {
+        final items = filterBySearch(all, query);
         if (items.isEmpty) {
-          return emptyState(CupertinoIcons.sparkles, 'No dreams yet',
-              'Big things for the future — jot them down.');
+          return emptyState(
+            CupertinoIcons.sparkles,
+            'No dreams yet',
+            'Big things for the future — jot them down.',
+            onAction: () => showItemEditor(context, ref, ItemKind.dream),
+            actionLabel: 'Add a dream',
+          );
         }
         return ListView(
           physics: const BouncingScrollPhysics(),
@@ -31,6 +42,7 @@ class DreamsScreen extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: DeletableRow(
                   item: item,
+                  semanticLabel: item.title,
                   child: Material(
                     color: Colors.transparent,
                     child: InkWell(

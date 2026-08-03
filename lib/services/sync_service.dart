@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -32,6 +33,13 @@ class SyncService {
 
   bool get online => _online;
 
+  /// Last time a local push to Supabase succeeded — null if never synced.
+  final ValueNotifier<DateTime?> lastSyncedAt = ValueNotifier(null);
+
+  /// Re-attempt pushing anything still pending — the Settings screen's
+  /// manual "Sync now" action, for when a user comes back online.
+  Future<void> forceResync() => pushPending();
+
   SupabaseClient get _db => Supabase.instance.client;
 
   /// Instant local write, then a background push.
@@ -61,6 +69,7 @@ class SyncService {
         await _db.from('items').upsert(item.toMap(), onConflict: 'uuid');
         item.isSynced = true;
         await isar.writeTxn(() => isar.items.put(item));
+        lastSyncedAt.value = DateTime.now();
       } catch (_) {
         // Leave isSynced=false; a later push or reconnect retries.
       }
@@ -90,5 +99,8 @@ class SyncService {
     });
   }
 
-  void dispose() => _sub?.cancel();
+  void dispose() {
+    _sub?.cancel();
+    lastSyncedAt.dispose();
+  }
 }
