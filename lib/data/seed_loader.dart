@@ -17,7 +17,9 @@ import '../models/item.dart';
 /// UUIDs are derived deterministically (v5) from kind+title so an accidental
 /// re-seed can never create duplicates (the uuid index is unique+replace).
 class SeedLoader {
-  static const _namespace = '6f9619ff-8b86-d011-b42d-00c04fc964ff';
+  // Must be a valid RFC 4122 UUID — `uuid` 4.x validates the version nibble
+  // before deriving a v5, and rejects anything that isn't a real UUID version.
+  static final _namespace = Namespace.url.value;
   static const _uuid = Uuid();
 
   /// Seeds the DB the first time only. Safe to call on every launch.
