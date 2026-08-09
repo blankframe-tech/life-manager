@@ -4,8 +4,10 @@ import 'dart:io';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import '../config/supabase_config.dart';
 import '../models/item.dart';
 
 /// One-time local bootstrap from `assets/seed/seed.json`.
@@ -26,6 +28,21 @@ class SeedLoader {
   static Future<void> seedIfNeeded(Isar isar) async {
     final marker = await _markerFile();
     if (await marker.exists()) return;
+
+    // With cloud sync on, a second device must never seed: the uuids are
+    // deterministic, so its pristine rows would upsert over the first device's
+    // edits with a newer `updatedAt` and win last-write-wins. Only the device
+    // that finds an empty cloud gets to seed.
+    if (SupabaseConfig.isConfigured) {
+      final empty = await _cloudIsEmpty();
+      // Unreachable cloud: seed nothing and leave the marker unwritten so the
+      // next launch can decide with a real answer.
+      if (empty == null) return;
+      if (!empty) {
+        await marker.create(recursive: true);
+        return;
+      }
+    }
 
     final items = await _readSeed();
     if (items.isNotEmpty) {
@@ -69,6 +86,20 @@ class SeedLoader {
       }
     }
     return null;
+  }
+
+  /// True when the cloud `items` table holds no rows, false when it holds some,
+  /// null when it couldn't be reached (offline, bad keys, missing table).
+  static Future<bool?> _cloudIsEmpty() async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('items')
+          .select('uuid')
+          .limit(1);
+      return rows.isEmpty;
+    } catch (_) {
+      return null;
+    }
   }
 
   static Future<File> _markerFile() async {
