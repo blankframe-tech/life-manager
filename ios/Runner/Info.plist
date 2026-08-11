@@ -24,8 +24,24 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.728137491074-v13iveqslbb8a6r4aq4enfpl0s28a6of</string>
+			</array>
+		</dict>
+	</array>
+	<key>GIDClientID</key>
+	<string>728137491074-v13iveqslbb8a6r4aq4enfpl0s28a6of.apps.googleusercontent.com</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- Shown when the optional app lock (Settings → Security) prompts. -->
+	<key>NSFaceIDUsageDescription</key>
+	<string>Face ID unlocks Life Manager when the app lock is enabled.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

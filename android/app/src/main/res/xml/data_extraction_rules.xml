@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ backup/transfer policy. `android:allowBackup="false"` already
+  disables cloud backup and adb backup, but on API 31+ device-to-device
+  transfer is governed here instead, so both channels are shut explicitly.
+
+  The local Isar database holds real financial figures and is not encrypted at
+  rest (Isar 3 has no encryption support), so it must not be copied off the
+  device by the platform. Nothing is lost by opting out: a new device signs in
+  and re-syncs everything from Supabase.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="external" />
+        <exclude domain="file" />
+    </device-transfer>
+</data-extraction-rules>

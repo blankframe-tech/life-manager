@@ -1,0 +1,16 @@
+# Copy this file to `android/key.properties` (git-ignored) to sign release
+# builds with your own upload key instead of the shared debug key.
+#
+# Generate the keystore first — pick a strong password when prompted, and keep
+# the .jks file somewhere safe and backed up (losing it means you can never
+# ship an update to the same app listing):
+#
+#   keytool -genkey -v -keystore ~/life-manager-upload.jks \
+#     -keyalg RSA -keysize 4096 -validity 10000 -alias upload
+#
+# Then fill in the values below. `storeFile` is resolved relative to
+# `android/app/`, so an absolute path is the safest choice.
+storePassword=
+keyPassword=
+keyAlias=upload
+storeFile=/absolute/path/to/life-manager-upload.jks

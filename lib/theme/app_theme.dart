@@ -89,7 +89,20 @@ class Section {
   final IconData icon;
   final IconData activeIcon;
   final Color color;
-  const Section(this.kind, this.label, this.icon, this.activeIcon, this.color);
+
+  /// Whether this kind gets its own bottom-nav tab. `false` for kinds that
+  /// are only reachable through another tab (e.g. Buy, absorbed into
+  /// Dreams) but still need a styling entry for [sectionFor].
+  final bool visibleInNav;
+
+  /// When a tab represents more than one [ItemKind] (the merged Dreams tab
+  /// covers both `buy` and `dream`), the FAB offers a choice between these
+  /// instead of adding [kind] directly. Null/single-entry means "just add
+  /// [kind]".
+  final List<String>? addableKinds;
+
+  const Section(this.kind, this.label, this.icon, this.activeIcon, this.color,
+      {this.visibleInNav = true, this.addableKinds});
 }
 
 const kSections = <Section>[
@@ -100,10 +113,15 @@ const kSections = <Section>[
   Section(ItemKind.task, 'Tasks', CupertinoIcons.check_mark_circled,
       CupertinoIcons.check_mark_circled_solid, AppColors.orange),
   Section(ItemKind.buy, 'Buy', CupertinoIcons.bag, CupertinoIcons.bag_fill,
-      AppColors.violet),
+      AppColors.violet,
+      visibleInNav: false),
   Section(ItemKind.dream, 'Dreams', CupertinoIcons.sparkles,
-      CupertinoIcons.sparkles, AppColors.pink),
+      CupertinoIcons.sparkles, AppColors.pink,
+      addableKinds: [ItemKind.buy, ItemKind.dream]),
 ];
+
+/// The tabs actually shown in the bottom nav, in display order.
+final kNavSections = kSections.where((s) => s.visibleInNav).toList();
 
 Section sectionFor(String kind) =>
     kSections.firstWhere((s) => s.kind == kind, orElse: () => kSections.first);

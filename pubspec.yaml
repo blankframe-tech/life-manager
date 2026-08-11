@@ -21,7 +21,19 @@ dependencies:
   cupertino_icons: ^1.0.8
   fl_chart: ^0.69.0
   shared_preferences: ^2.3.2
-
+  google_sign_in: ^7.2.0
+  # Keychain / Keystore for the Supabase session — see secure_session_storage.
+  # Held on 10.x: 11.0.0 requires compileSdk 37, which our AGP predates.
+  flutter_secure_storage: ^10.3.1
+  # Optional app lock (Settings → Security). Requires MainActivity to extend
+  # FlutterFragmentActivity on Android.
+  local_auth: ^3.0.2
+  # Only for ClientException, when classifying sync failures for display.
+  http: ^1.6.0
+  share_plus: ^13.3.0
+  file_selector: ^1.1.0
+  # SHA-256 for the Google Sign-In nonce — see auth_service.dart.
+  crypto: ^3.0.6
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -37,9 +37,15 @@ appear live.
 - **Offline:** with no Supabase keys the app is a fully working local tracker;
   add keys later and it starts syncing.
 
+- **Backup:** Settings → Data exports everything to a JSON file via the share
+  sheet, and imports one back. Import merges (never deletes) using the same
+  last-write-wins rule as sync. The same screen has a full reset that clears
+  local + cloud and signs out (needs `supabase/allow_history_delete.sql`).
+
 Key files: `lib/models/item.dart` (unified record + JSON mapping),
 `lib/services/sync_service.dart` (the sync engine), `lib/providers/providers.dart`,
-`lib/data/seed_loader.dart` (one-time first-launch import), `lib/screens/*`.
+`lib/data/seed_loader.dart` (one-time first-launch import),
+`lib/services/backup_service.dart` (export/import), `lib/screens/*`.
 
 ## Run it
 

@@ -8,10 +8,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/supabase_config.dart';
 import 'data/seed_loader.dart';
+import 'models/history_event.dart';
 import 'models/item.dart';
 import 'providers/providers.dart';
-import 'screens/root_scaffold.dart';
+import 'services/budget_reset_service.dart';
+import 'services/secure_session_storage.dart';
 import 'theme/app_theme.dart';
+import 'widgets/app_lock_gate.dart';
+import 'widgets/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,28 +23,47 @@ Future<void> main() async {
 
   // Cloud (optional — the app is fully usable offline without keys).
   if (SupabaseConfig.isConfigured) {
+    // Keep the session (and its long-lived refresh token) in the Keychain /
+    // Keystore rather than the plaintext SharedPreferences default.
+    final authOptions = FlutterAuthClientOptions(
+      localStorage: SecureLocalStorage(
+        persistSessionKey: persistSessionKeyFor(SupabaseConfig.url),
+      ),
+      pkceAsyncStorage: SecureGotrueAsyncStorage(),
+    );
     if (SupabaseConfig.isPublishableKey) {
       await Supabase.initialize(
         url: SupabaseConfig.url,
         publishableKey: SupabaseConfig.anonKey,
+        authOptions: authOptions,
       );
     } else {
       await Supabase.initialize(
         url: SupabaseConfig.url,
         // ignore: deprecated_member_use — legacy anon JWT fallback.
         anonKey: SupabaseConfig.anonKey,
+        authOptions: authOptions,
       );
     }
   }
 
   // Local DB — the source of truth the UI renders from.
   final dir = await getApplicationDocumentsDirectory();
-  final isar = await Isar.open([ItemSchema], directory: dir.path);
+  final isar =
+      await Isar.open([ItemSchema, HistoryEventSchema], directory: dir.path);
 
-  // One-time bootstrap from the bundled seed (if present).
-  await SeedLoader.seedIfNeeded(isar);
+  // One-time bootstrap from the bundled seed (if present). When Supabase is
+  // configured this instead runs from AuthGate once a session exists — an
+  // unauthenticated "is the cloud empty" check looks empty even when it
+  // isn't under owner-only RLS, so seeding must wait for real auth.
+  if (!SupabaseConfig.isConfigured) {
+    await SeedLoader.seedIfNeeded(isar);
+  }
 
   final prefs = await SharedPreferences.getInstance();
+
+  // Un-tick any checked-off Needs items on the first launch of a new month.
+  await resetNeedsIfNewMonth(isar, prefs);
 
   runApp(
     ProviderScope(
@@ -65,7 +88,7 @@ class LifeManagerApp extends ConsumerWidget {
       theme: buildTheme(),
       darkTheme: buildTheme(brightness: Brightness.dark),
       themeMode: themeMode,
-      home: const RootScaffold(),
+      home: const AppLockGate(child: AuthGate()),
     );
   }
 }

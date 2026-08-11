@@ -38,6 +38,39 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
     setState(() => _searchOpen = false);
   }
 
+  static const _addLabels = {
+    ItemKind.buy: 'Add to shopping',
+    ItemKind.dream: 'Add a dream',
+  };
+
+  void _handleAdd(BuildContext context, Section section) {
+    final kinds = section.addableKinds;
+    if (kinds == null || kinds.length <= 1) {
+      showItemEditor(context, ref, section.kind);
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final kind in kinds)
+              ListTile(
+                leading:
+                    Icon(sectionFor(kind).icon, color: sectionFor(kind).color),
+                title: Text(_addLabels[kind] ?? 'Add'),
+                onTap: () {
+                  Navigator.of(sheetContext).pop();
+                  showItemEditor(context, ref, kind);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   static const _screens = [
     BudgetScreen(),
     DealingsScreen(),
@@ -52,22 +85,12 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
       emptyTitle: 'No tasks',
       emptySubtitle: 'Add something you need to get done.',
     ),
-    ChecklistScreen(
-      kind: ItemKind.buy,
-      groups: [
-        (section: 'p0', label: 'Priority 0 · must asap'),
-        (section: 'wishlist', label: 'Wishlist'),
-      ],
-      emptyIcon: CupertinoIcons.bag,
-      emptyTitle: 'Nothing to buy',
-      emptySubtitle: 'Add things you plan to purchase.',
-    ),
     DreamsScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final section = kSections[_index];
+    final section = kNavSections[_index];
     final online = ref.watch(syncOnlineProvider);
     final c = context.colors;
     return Scaffold(
@@ -113,7 +136,7 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
       ),
       body: IndexedStack(index: _index, children: _screens),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => showItemEditor(context, ref, section.kind),
+        onPressed: () => _handleAdd(context, section),
         backgroundColor: section.color,
         elevation: 2,
         child: const Icon(CupertinoIcons.add, color: Colors.white),
@@ -134,7 +157,7 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
             setState(() => _index = i);
           },
           destinations: [
-            for (final s in kSections)
+            for (final s in kNavSections)
               NavigationDestination(
                 icon: Icon(s.icon),
                 selectedIcon: Icon(s.activeIcon, color: s.color),

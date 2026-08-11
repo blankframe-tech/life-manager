@@ -23,6 +23,9 @@ class ChecklistScreen extends ConsumerWidget {
     required this.emptyIcon,
     required this.emptyTitle,
     required this.emptySubtitle,
+    this.shrinkWrap = false,
+    this.physics,
+    this.searchKind,
   });
 
   final String kind;
@@ -31,34 +34,56 @@ class ChecklistScreen extends ConsumerWidget {
   final String emptyTitle;
   final String emptySubtitle;
 
+  /// Set when this screen is nested (non-scrolling) inside another list —
+  /// e.g. the Shopping section embedded in the merged Dreams tab.
+  final bool shrinkWrap;
+  final ScrollPhysics? physics;
+
+  /// Provider key to read the search query from. Defaults to [kind]; the
+  /// merged Dreams tab overrides this so one search box filters both its
+  /// Shopping section and its Dreams cards.
+  final String? searchKind;
+
+  /// Bounds a [Center]-based state (empty/error) so it doesn't throw when
+  /// nested inside an outer unbounded list ([shrinkWrap]).
+  Widget _bounded(Widget child) =>
+      shrinkWrap ? SizedBox(height: 200, child: child) : child;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(itemsProvider(kind));
-    final query = ref.watch(searchQueryProvider(kind));
+    final query = ref.watch(searchQueryProvider(searchKind ?? kind));
     final hideDone = ref.watch(hideDoneProvider(kind));
     return async.when(
-      loading: () => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-        children: const [LoadingSkeleton()],
-      ),
-      error: (e, _) => errorState(context, () => ref.invalidate(itemsProvider(kind))),
+      loading: () => shrinkWrap
+          ? const Padding(
+              padding: EdgeInsets.fromLTRB(0, 8, 0, 16),
+              child: LoadingSkeleton(),
+            )
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
+              children: const [LoadingSkeleton()],
+            ),
+      error: (e, _) => _bounded(
+          errorState(context, () => ref.invalidate(itemsProvider(kind)))),
       data: (all) {
         final searched = filterBySearch(all, query);
         if (searched.isEmpty) {
-          return emptyState(
+          return _bounded(emptyState(
             emptyIcon,
             emptyTitle,
             emptySubtitle,
             onAction: () => showItemEditor(context, ref, kind),
             actionLabel: 'Add',
-          );
+          ));
         }
         final items =
             hideDone ? searched.where((i) => !i.done).toList() : searched;
         final doneCount = searched.where((i) => i.done).length;
         return ListView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 96),
+          shrinkWrap: shrinkWrap,
+          physics: physics ?? const BouncingScrollPhysics(),
+          padding: shrinkWrap ? EdgeInsets.zero : const EdgeInsets.only(bottom: 96),
           children: [
             if (doneCount > 0) _hideDoneToggle(context, ref, doneCount),
             for (final g in groups)

@@ -2,8 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../models/history_event.dart';
 import '../models/item.dart';
+import '../services/app_lock_service.dart';
+import '../services/auth_service.dart';
+import '../services/backup_service.dart';
+import '../services/reset_service.dart';
 import '../services/settings_service.dart';
 import '../services/sync_service.dart';
 
@@ -21,6 +27,15 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   return svc;
 });
 
+/// Google Sign-In + Supabase Auth wrapper. Inert unless Supabase is
+/// configured — see [AuthService].
+final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+
+/// The current Supabase auth session, reactive — drives [AuthGate].
+final authStateProvider = StreamProvider<AuthState>((ref) {
+  return ref.watch(authServiceProvider).authStateChanges;
+});
+
 /// Reactive, sorted stream of the live (non-deleted) items for one section.
 final itemsProvider =
     StreamProvider.family<List<Item>, String>((ref, kind) {
@@ -34,18 +49,57 @@ final itemsProvider =
       .watch(fireImmediately: true);
 });
 
+/// Every logged action (add/edit/complete/delete), newest first.
+final historyProvider = StreamProvider<List<HistoryEvent>>((ref) {
+  final isar = ref.watch(isarProvider);
+  return isar.historyEvents
+      .where()
+      .sortByTimestampDesc()
+      .watch(fireImmediately: true);
+});
+
 /// Whether cloud sync is active (Supabase configured at build time).
 final syncOnlineProvider = Provider<bool>((ref) {
   return ref.watch(syncServiceProvider).online;
 });
 
+/// JSON export / import of the whole local DB — Settings → Data.
+final backupServiceProvider =
+    Provider<BackupService>((ref) => BackupService(ref.watch(isarProvider)));
+
+/// Full wipe back to a fresh install — Settings → Data → Delete all data.
+final resetServiceProvider = Provider<ResetService>((ref) => ResetService(
+      ref.watch(isarProvider),
+      ref.watch(sharedPreferencesProvider),
+      ref.watch(syncServiceProvider),
+    ));
+
+/// Biometric / passcode gate — see [AppLockService] for why it exists.
+final appLockServiceProvider = Provider<AppLockService>((ref) => AppLockService());
+
+/// Whether the app lock is switched on, persisted across launches.
+final appLockEnabledProvider =
+    StateNotifierProvider<AppLockNotifier, bool>(
+        (ref) => AppLockNotifier(ref.watch(sharedPreferencesProvider)));
+
+/// Whether this device can authenticate at all (biometrics enrolled or a
+/// passcode set) — gates the Settings toggle so the lock can't strand a user.
+final appLockAvailableProvider = FutureProvider<bool>(
+    (ref) => ref.watch(appLockServiceProvider).canLock());
+
 /// System / Light / Dark, persisted across launches.
 final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
     (ref) => ThemeModeNotifier(ref.watch(sharedPreferencesProvider)));
 
-/// Monthly take-home used for the budget screen's 65/20/15 split.
+/// Monthly take-home used for the budget screen's Needs/Wants/Savings split.
 final monthlySalaryProvider = StateNotifierProvider<SalaryNotifier, double>(
     (ref) => SalaryNotifier(ref.watch(sharedPreferencesProvider)));
+
+/// The target Needs/Wants/Savings split itself — defaults to 65/15/20 but is
+/// user-editable in Settings.
+final budgetSplitProvider =
+    StateNotifierProvider<BudgetSplitNotifier, BudgetSplit>(
+        (ref) => BudgetSplitNotifier(ref.watch(sharedPreferencesProvider)));
 
 /// Live search text per screen (keyed by [ItemKind]) — cleared when a screen
 /// is left by resetting via the search bar's close button.

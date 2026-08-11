@@ -25,3 +25,15 @@ class SupabaseConfig {
   /// Modern keys are passed via `publishableKey`; legacy JWTs via `anonKey`.
   static bool get isPublishableKey => anonKey.startsWith('sb_');
 }
+
+/// Google Sign-In settings — the Web OAuth client ID from Google Cloud
+/// Console (see HANDOFF.md for the full setup guide), passed as
+/// `serverClientId` so the ID token's audience matches what Supabase Auth's
+/// Google provider expects, on every platform. Not secret — same
+/// "safe to ship" client ID class as [SupabaseConfig.anonKey].
+class GoogleAuthConfig {
+  static const serverClientId =
+      String.fromEnvironment('GOOGLE_SERVER_CLIENT_ID', defaultValue: '');
+
+  static bool get isConfigured => serverClientId.isNotEmpty;
+}
