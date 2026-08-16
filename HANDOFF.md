@@ -43,7 +43,8 @@ dart run build_runner build     # generates lib/models/*.g.dart
    screen. `SyncService` now considers itself "online" only when a real
    session exists (was: "keys existed at build time"), and retries pending
    pushes every 30s. See "Auth setup" below for exactly what was done and
-   where it differed from the original plan.
+   where it differed from the original plan. (Superseded 2026-08-17 — "online"
+   has since been split into `enabled` + `reachable`; see "Offline tolerance".)
 3. **Buy merged into Dreams.** The bottom nav is down to 4 tabs. The Dreams
    screen now renders a "Shopping" section (P0/Wishlist grouping, amounts,
    checkboxes — everything Buy had) above the Dreams card list; the FAB on
@@ -233,6 +234,54 @@ there's no forced re-login.
 cipher defaults are the same either way. `local_auth` also forced
 `MainActivity` to extend `FlutterFragmentActivity` — the biometric prompt is a
 Fragment and throws `no_fragment_activity` under plain `FlutterActivity`.
+
+## Offline tolerance (2026-08-17)
+
+**Symptom:** the app demanded a fresh sign-in constantly, worst when offline.
+
+**Cause:** `onAuthStateChange` carries two unrelated kinds of bad news, and the
+app treated them as one. gotrue's `_doRefresh` emits an *event*
+(`signedOut`) when the refresh token is genuinely rejected, but pushes a
+*stream error* via `notifyException` for any **retryable** failure — i.e. every
+token refresh that can't reach the server. It deliberately keeps
+`_currentSession` intact when it does this, because nothing is wrong with the
+session. `AuthGate` watched that stream through a `StreamProvider` whose
+`error:` branch returned `SignInScreen`, so an offline refresh logged you out
+of a perfectly valid session — and gotrue's 10s auto-refresh ticker
+regenerated the error for as long as you stayed offline.
+
+**Fix — separate "am I signed in" from "can I reach the server":**
+
+- `lib/services/session_controller.dart` (new) is the only thing `AuthGate`
+  reads. It seeds synchronously from `auth.currentSession` (already populated
+  by then: `Supabase.initialize` awaits `SupabaseAuth.initialize`, which calls
+  `setInitialSession` with the persisted session, expired or not), and it
+  **ignores stream errors entirely**. The only route back to `SignInScreen` is
+  an explicit `signedOut` event.
+- `SyncService` splits the old `_online` into `enabled` (a session exists —
+  pushes are worth attempting) and `reachable` (the last request got through);
+  `online` is both. Offline it queues locally, probes every 30s and on app
+  resume, and on the first success re-subscribes realtime — which re-emits a
+  full snapshot, catching up on whatever changed while away.
+- `_ensureFreshToken()` refreshes an expired access token before pushing, so a
+  guaranteed 401 doesn't get reported as "Session expired — sign in again".
+  gotrue de-duplicates concurrent refreshes of the same token, so racing its
+  own ticker is safe.
+- `isOfflineError` (`lib/util/net.dart`) is the shared test for "transport
+  failure" vs "the server answered and said no". `AuthRetryableFetchException`
+  **extends** `AuthException`, so it must be matched *before* it in
+  `describeSyncError` / `describeAuthError` — otherwise offline renders as
+  "sign in again", which is exactly the false alarm this all exists to kill.
+- The cloud indicator now uses `ValueListenableBuilder` on
+  `SyncService.isOnline`. The old `syncOnlineProvider` was a plain
+  `Provider<bool>` that read `online` once and never rebuilt, so the icon was
+  frozen at whatever it showed on launch.
+
+Covered by `test/session_test.dart` (15 tests), including a burst of 50
+consecutive refresh failures that must not sign the user out.
+
+**Not changed, and deliberately:** a revoked or expired *refresh* token still
+signs you out — that's the server's call, not a connectivity guess.
 
 ## Data export / import (2026-08-12)
 

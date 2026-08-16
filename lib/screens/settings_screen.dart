@@ -58,7 +58,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final c = context.colors;
     final themeMode = ref.watch(themeModeProvider);
     final sync = ref.watch(syncServiceProvider);
-    final online = ref.watch(syncOnlineProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -138,38 +137,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ]),
           groupHeader(context, 'Sync'),
           cardGroup(context, [
-            ListTile(
-              leading: Icon(
-                online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
-                color: online ? AppColors.green : c.inkSub,
-              ),
-              title: Text(online ? 'Online' : 'Offline (local only)'),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ValueListenableBuilder<DateTime?>(
-                    valueListenable: sync.lastSyncedAt,
-                    builder: (context, value, _) => Text(
-                      value == null
-                          ? 'Not synced yet'
-                          : 'Last synced ${DateFormat('d MMM, HH:mm').format(value)}',
+            ValueListenableBuilder<bool>(
+              valueListenable: sync.isOnline,
+              builder: (context, online, _) => ListTile(
+                leading: Icon(
+                  online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
+                  color: online ? AppColors.green : c.inkSub,
+                ),
+                title: Text(online ? 'Online' : 'Offline'),
+                subtitle: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ValueListenableBuilder<DateTime?>(
+                      valueListenable: sync.lastSyncedAt,
+                      builder: (context, value, _) => Text(
+                        value == null
+                            ? 'Not synced yet'
+                            : 'Last synced ${DateFormat('d MMM, HH:mm').format(value)}',
+                      ),
                     ),
-                  ),
-                  ValueListenableBuilder<String?>(
-                    valueListenable: sync.lastError,
-                    builder: (context, error, _) => error == null
-                        ? const SizedBox.shrink()
-                        : Text(
-                            'Sync error: $error',
-                            style: const TextStyle(color: AppColors.rose),
-                          ),
-                  ),
-                ],
-              ),
-              trailing: TextButton(
-                onPressed: online ? () => _syncNow(context, sync) : null,
-                child: const Text('Sync now'),
+                    // Reassurance, not an error: offline is a normal state and
+                    // nothing is lost in it.
+                    if (!online && sync.enabled)
+                      const Text('Changes are saved here and will sync '
+                          'automatically when you reconnect.'),
+                    ValueListenableBuilder<String?>(
+                      valueListenable: sync.lastError,
+                      builder: (context, error, _) =>
+                          error == null || (!online && sync.enabled)
+                              ? const SizedBox.shrink()
+                              : Text(
+                                  'Sync error: $error',
+                                  style: const TextStyle(color: AppColors.rose),
+                                ),
+                    ),
+                  ],
+                ),
+                // Gated on `enabled` rather than `online` so someone who knows
+                // their connection is back can skip the 30s retry tick.
+                trailing: TextButton(
+                  onPressed:
+                      sync.enabled ? () => _syncNow(context, sync) : null,
+                  child: const Text('Sync now'),
+                ),
               ),
             ),
           ]),
@@ -179,7 +190,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ListTile(
                 leading: const Icon(CupertinoIcons.person_circle),
                 title: Text(
-                  ref.watch(authStateProvider).valueOrNull?.session?.user.email ??
+                  ref.watch(sessionProvider).session?.user.email ??
                       'Signed in',
                 ),
                 trailing: TextButton(
@@ -486,11 +497,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          result.failed == 0
-              ? (result.pushed == 0
-                  ? 'Already up to date'
-                  : 'Synced ${result.pushed} item(s)')
-              : 'Synced ${result.pushed}, failed ${result.failed} — see error below',
+          // Being offline isn't a failure to report as one — nothing was lost
+          // and no action is needed, so say that rather than "failed N".
+          !sync.reachable
+              ? 'Still offline — your changes are saved and will sync '
+                  'automatically'
+              : result.failed == 0
+                  ? (result.pushed == 0
+                      ? 'Already up to date'
+                      : 'Synced ${result.pushed} item(s)')
+                  : 'Synced ${result.pushed}, failed ${result.failed} — see error below',
         ),
       ),
     );

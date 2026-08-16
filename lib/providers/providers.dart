@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/history_event.dart';
 import '../models/item.dart';
@@ -10,8 +9,11 @@ import '../services/app_lock_service.dart';
 import '../services/auth_service.dart';
 import '../services/backup_service.dart';
 import '../services/reset_service.dart';
+import '../services/session_controller.dart';
 import '../services/settings_service.dart';
 import '../services/sync_service.dart';
+
+export '../services/session_controller.dart' show AuthPhase, SessionState;
 
 /// The open Isar instance — overridden in `main()` after the DB opens.
 final isarProvider = Provider<Isar>((ref) => throw UnimplementedError());
@@ -31,10 +33,16 @@ final syncServiceProvider = Provider<SyncService>((ref) {
 /// configured — see [AuthService].
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
-/// The current Supabase auth session, reactive — drives [AuthGate].
-final authStateProvider = StreamProvider<AuthState>((ref) {
-  return ref.watch(authServiceProvider).authStateChanges;
-});
+/// Offline-tolerant auth state — drives [AuthGate].
+///
+/// Deliberately *not* a `StreamProvider` over `onAuthStateChange`: that stream
+/// carries network failures as stream errors, which would collapse to
+/// `AsyncError` and bounce a perfectly signed-in user to the sign-in screen
+/// every time a token refresh couldn't reach the server. See
+/// [SessionController].
+final sessionProvider =
+    StateNotifierProvider<SessionController, SessionState>(
+        (ref) => SessionController.from(ref.watch(authServiceProvider)));
 
 /// Reactive, sorted stream of the live (non-deleted) items for one section.
 final itemsProvider =
@@ -58,10 +66,10 @@ final historyProvider = StreamProvider<List<HistoryEvent>>((ref) {
       .watch(fireImmediately: true);
 });
 
-/// Whether cloud sync is active (Supabase configured at build time).
-final syncOnlineProvider = Provider<bool>((ref) {
-  return ref.watch(syncServiceProvider).online;
-});
+// Connectivity is read through `SyncService.isOnline` with a
+// `ValueListenableBuilder` (as `lastSyncedAt` / `lastError` already are)
+// rather than a provider: a plain `Provider<bool>` reading `online` once never
+// rebuilt, so the cloud icon was frozen at whatever it showed on launch.
 
 /// JSON export / import of the whole local DB — Settings → Data.
 final backupServiceProvider =

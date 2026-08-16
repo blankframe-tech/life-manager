@@ -7,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
+import '../util/net.dart';
 
 /// Thin wrapper over Google Sign-In + Supabase Auth's ID-token exchange.
 /// Only ever invoked when [SupabaseConfig.isConfigured] — the app has no
@@ -92,6 +93,15 @@ class AuthService {
   /// and occasionally token fragments, so only a summary is surfaced; debug
   /// builds keep the original for diagnosis.
   static String describeAuthError(Object error) {
+    // Checked before the type cases below: `AuthRetryableFetchException` is an
+    // `AuthException`, and "no connection" is far more useful than "could not
+    // sign in". Only genuinely signed-out users reach the sign-in screen now,
+    // so an offline attempt here is a first sign-in or a re-sign-in — either
+    // way the fix is to reconnect, not to retry.
+    if (isOfflineError(error)) {
+      return 'No connection — signing in needs internet, but your data is '
+          'safe on this device';
+    }
     final summary = switch (error) {
       GoogleSignInException(:final code) =>
         code == GoogleSignInExceptionCode.canceled

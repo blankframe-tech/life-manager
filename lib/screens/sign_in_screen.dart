@@ -21,7 +21,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     setState(() => _loading = true);
     try {
       await ref.read(authServiceProvider).signInWithGoogle();
-      // On success, AuthGate's authStateProvider listener swaps this screen
+      // On success, AuthGate's sessionProvider listener swaps this screen
       // out automatically — nothing else to do here.
     } catch (e) {
       if (!mounted) return;

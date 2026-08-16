@@ -91,7 +91,7 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
   @override
   Widget build(BuildContext context) {
     final section = kNavSections[_index];
-    final online = ref.watch(syncOnlineProvider);
+    final sync = ref.watch(syncServiceProvider);
     final c = context.colors;
     return Scaffold(
       appBar: AppBar(
@@ -114,14 +114,21 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
                 ? _closeSearch(section.kind)
                 : setState(() => _searchOpen = true),
           ),
-          Semantics(
-            label: online ? 'Sync online' : 'Sync offline',
-            child: Padding(
-              padding: const EdgeInsets.only(right: 4),
-              child: Icon(
-                online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
-                size: 20,
-                color: online ? AppColors.green : c.inkSub,
+          // Live, not a one-shot read: this has to track the connection
+          // dropping and coming back while the app stays open.
+          ValueListenableBuilder<bool>(
+            valueListenable: sync.isOnline,
+            builder: (context, online, _) => Semantics(
+              label: online
+                  ? 'Sync online'
+                  : 'Offline — changes are saved and will sync later',
+              child: Padding(
+                padding: const EdgeInsets.only(right: 4),
+                child: Icon(
+                  online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
+                  size: 20,
+                  color: online ? AppColors.green : c.inkSub,
+                ),
               ),
             ),
           ),
