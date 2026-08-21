@@ -2,17 +2,26 @@ import 'package:isar_community/isar.dart';
 
 part 'item.g.dart';
 
-/// The five sections of the app. Stored as [Item.kind] (a String) so that the
+/// The sections of the app. Stored as [Item.kind] (a String) so that the
 /// value maps 1:1 onto the Supabase `items.kind` text column without depending
 /// on enum ordinal stability.
 class ItemKind {
+  static const txn = 'txn'; // money actually spent / earned
   static const deal = 'deal'; // Dena Paona ledger
   static const budget = 'budget'; // 65/20/15 monthly plan
   static const task = 'task'; // to-dos
   static const buy = 'buy'; // shopping lists
   static const dream = 'dream'; // long-term wishes
 
-  static const all = [deal, budget, task, buy, dream];
+  static const all = [txn, deal, budget, task, buy, dream];
+}
+
+/// Direction of an [ItemKind.txn] entry — money out or money in. Shares the
+/// `direction` column with [DealDirection]; the two never mix, because a row's
+/// [Item.kind] decides which vocabulary applies.
+class TxnDirection {
+  static const spend = 'spend'; // money out (-)
+  static const earn = 'earn'; // money in (+)
 }
 
 /// Direction of a [ItemKind.deal] entry.
@@ -53,10 +62,14 @@ class Item {
   /// Money value in BDT (nullable — tasks/dreams have none).
   double? amount;
 
-  /// For deals: one of [DealDirection].
+  /// For deals: one of [DealDirection]. For transactions: one of
+  /// [TxnDirection].
   String? direction;
 
-  /// For budget rows: one of [BudgetCategory].
+  /// For budget rows: one of [BudgetCategory]. For transactions: a free-form
+  /// category name the user can add and remove (see `TxnCategoryNotifier`) —
+  /// stored as text, not an id, so a category that gets deleted leaves the
+  /// transactions that used it still readable.
   String? category;
 
   /// Sub-grouping within a screen:
@@ -67,7 +80,11 @@ class Item {
   /// Task completed / item bought / deal settled.
   bool done = false;
 
-  /// Optional deadline (tasks).
+  /// Optional deadline (tasks), and the date the money moved (transactions —
+  /// read it through [TxnFields.occurredAt] rather than here). Both are "the
+  /// one date this row is about", so they share a column instead of adding a
+  /// second nullable timestamp to every row and a Supabase migration to a
+  /// table that already has one.
   DateTime? dueDate;
 
   /// Manual ordering within a section (lower = higher up).
@@ -142,4 +159,22 @@ class Item {
       ..isSynced = false
       ..isDeleted = false;
   }
+}
+
+/// Transaction-only view over the shared columns, so the log screen never
+/// reads `dueDate` (which means "deadline" everywhere else) directly.
+extension TxnFields on Item {
+  /// When the money moved. Falls back to the row's last-write time for
+  /// transactions written before a date was set — never null, because every
+  /// transaction has to land in some week.
+  DateTime get occurredAt => (dueDate ?? updatedAt).toLocal();
+
+  set occurredAt(DateTime when) => dueDate = when;
+
+  /// Money in is positive, money out negative. Un-directed rows count as
+  /// spending, which is the direction a bare amount almost always means here.
+  double get signedAmount =>
+      direction == TxnDirection.earn ? (amount ?? 0) : -(amount ?? 0);
+
+  bool get isEarning => direction == TxnDirection.earn;
 }

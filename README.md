@@ -1,10 +1,11 @@
 # Life Manager
 
 A fast, **offline-first** personal life manager for iOS and Android, built with
-Flutter. It organizes five things and **syncs them across your devices**:
+Flutter. It organizes six things and **syncs them across your devices**:
 
 | Tab | What it holds |
 |-----|---------------|
+| **Transactions** | A log of money actually spent and earned, by category, rolled up per week |
 | **Budget**   | A 65 / 20 / 15 monthly plan (Needs / Savings / Wants) with live ideal-vs-actual bars |
 | **Dealings** | A *Dena Paona* ledger — who you owe, who owes you, and your net position |
 | **Tasks**    | To-dos grouped into Time-sensitive · Admin & tech · Declutter/repairs, with due dates |
@@ -30,7 +31,7 @@ appear live.
 - **Local DB:** `isar_community` (maintained fork of Isar — the official
   `isar` 3.1.0 ships a 2023-era analyzer that can't parse Dart 3.12; the fork is
   a drop-in with the same API).
-- **Cloud:** Supabase — a single `items` table backs all five screens. Deletes
+- **Cloud:** Supabase — a single `items` table backs every screen. Deletes
   are soft (tombstones) so they propagate. Conflicts resolve last-write-wins on
   `updated_at`.
 - **State:** Riverpod. Each screen is a filtered stream over the one collection.

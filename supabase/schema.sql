@@ -9,15 +9,15 @@
 -- One table backs every screen; the app filters by `kind`.
 create table if not exists public.items (
   uuid        uuid primary key,
-  kind        text not null,             -- deal | budget | task | buy | dream
+  kind        text not null,             -- txn | deal | budget | task | buy | dream
   title       text not null default '',
   note        text not null default '',
   amount      numeric,                   -- nullable (tasks/dreams have none)
-  direction   text,                      -- deals: i_owe | they_owe
-  category    text,                      -- budget: needs | wants | savings
+  direction   text,                      -- deals: i_owe | they_owe; txn: spend | earn
+  category    text,                      -- budget: needs | wants | savings; txn: free text
   section     text,                      -- task/buy sub-group
   done        boolean not null default false,
-  due_date    timestamptz,
+  due_date    timestamptz,                -- task deadline; txn: when the money moved
   sort_order  integer not null default 0,
   updated_at  timestamptz not null default now(),
   is_deleted  boolean not null default false,

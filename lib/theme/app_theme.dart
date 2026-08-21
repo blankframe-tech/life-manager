@@ -12,6 +12,7 @@ class AppColors {
   static const orange = Color(0xFFF97316); // tasks
   static const violet = Color(0xFF8B5CF6); // buy
   static const pink = Color(0xFFEC4899); // dreams
+  static const sky = Color(0xFF0EA5E9); // transactions
   static const green = Color(0xFF22C55E); // done / synced / online
 }
 
@@ -101,30 +102,68 @@ class Section {
   /// [kind]".
   final List<String>? addableKinds;
 
+  /// What one row of this section is called, for sheet titles ("New
+  /// Transaction"). Defaults to [label], which reads as a plural on most tabs.
+  final String? singularLabel;
+
   const Section(this.kind, this.label, this.icon, this.activeIcon, this.color,
-      {this.visibleInNav = true, this.addableKinds});
+      {this.visibleInNav = true, this.addableKinds, this.singularLabel});
+
+  String get singular => singularLabel ?? label;
 }
 
 const kSections = <Section>[
+  Section(ItemKind.txn, 'Transactions', CupertinoIcons.creditcard,
+      CupertinoIcons.creditcard_fill, AppColors.sky,
+      singularLabel: 'Transaction'),
   Section(ItemKind.budget, 'Budget', CupertinoIcons.chart_pie,
       CupertinoIcons.chart_pie_fill, AppColors.indigo),
   Section(ItemKind.deal, 'Dealings', CupertinoIcons.arrow_right_arrow_left,
-      CupertinoIcons.arrow_right_arrow_left, AppColors.teal),
+      CupertinoIcons.arrow_right_arrow_left, AppColors.teal,
+      singularLabel: 'Dealing'),
   Section(ItemKind.task, 'Tasks', CupertinoIcons.check_mark_circled,
-      CupertinoIcons.check_mark_circled_solid, AppColors.orange),
+      CupertinoIcons.check_mark_circled_solid, AppColors.orange,
+      singularLabel: 'Task'),
   Section(ItemKind.buy, 'Buy', CupertinoIcons.bag, CupertinoIcons.bag_fill,
       AppColors.violet,
       visibleInNav: false),
   Section(ItemKind.dream, 'Dreams', CupertinoIcons.sparkles,
       CupertinoIcons.sparkles, AppColors.pink,
-      addableKinds: [ItemKind.buy, ItemKind.dream]),
+      addableKinds: [ItemKind.buy, ItemKind.dream], singularLabel: 'Dream'),
 ];
 
 /// The tabs actually shown in the bottom nav, in display order.
 final kNavSections = kSections.where((s) => s.visibleInNav).toList();
 
-Section sectionFor(String kind) =>
-    kSections.firstWhere((s) => s.kind == kind, orElse: () => kSections.first);
+/// Styling for a kind. Unknown kinds (e.g. a history row written by a newer
+/// build) fall back to Budget rather than to whatever happens to sit first in
+/// [kSections], so adding a tab can't restyle old data.
+Section sectionFor(String kind) => kSections.firstWhere((s) => s.kind == kind,
+    orElse: () => kSections.firstWhere((s) => s.kind == ItemKind.budget));
+
+/// A stable accent for a user-created transaction category.
+///
+/// Categories are free text with no stored colour, so the colour is derived
+/// from the name — the same name always gets the same swatch, on every device
+/// and every launch. `String.hashCode` isn't usable for that (it's salted per
+/// run), hence the explicit sum.
+Color categoryColor(String name) {
+  const palette = [
+    AppColors.sky,
+    AppColors.violet,
+    AppColors.orange,
+    AppColors.teal,
+    AppColors.pink,
+    AppColors.indigo,
+    AppColors.green,
+    AppColors.rose,
+  ];
+  var sum = 0;
+  for (final unit in name.toLowerCase().codeUnits) {
+    sum = (sum * 31 + unit) % 100003;
+  }
+  return palette[sum % palette.length];
+}
 
 /// App-wide Material theme, tuned to feel native on iOS. Pass [Brightness.dark]
 /// for the dark variant — both share the same shape, only tokens differ.

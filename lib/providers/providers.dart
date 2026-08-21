@@ -12,6 +12,7 @@ import '../services/reset_service.dart';
 import '../services/session_controller.dart';
 import '../services/settings_service.dart';
 import '../services/sync_service.dart';
+import '../services/txn_category_service.dart';
 
 export '../services/session_controller.dart' show AuthPhase, SessionState;
 
@@ -108,6 +109,12 @@ final monthlySalaryProvider = StateNotifierProvider<SalaryNotifier, double>(
 final budgetSplitProvider =
     StateNotifierProvider<BudgetSplitNotifier, BudgetSplit>(
         (ref) => BudgetSplitNotifier(ref.watch(sharedPreferencesProvider)));
+
+/// The user's transaction categories (Settings → Transactions), persisted
+/// across launches. Addable and removable; see [TxnCategoryNotifier].
+final txnCategoriesProvider =
+    StateNotifierProvider<TxnCategoryNotifier, List<String>>(
+        (ref) => TxnCategoryNotifier(ref.watch(sharedPreferencesProvider)));
 
 /// Live search text per screen (keyed by [ItemKind]) — cleared when a screen
 /// is left by resetting via the search bar's close button.

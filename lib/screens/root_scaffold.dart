@@ -11,8 +11,9 @@ import 'checklist_screen.dart';
 import 'dealings_screen.dart';
 import 'dreams_screen.dart';
 import 'settings_screen.dart';
+import 'transactions_screen.dart';
 
-/// The app shell: a bottom tab bar over the five sections. Screens stay mounted
+/// The app shell: a bottom tab bar over the sections. Screens stay mounted
 /// (IndexedStack) so switching tabs never resets scroll or in-progress input.
 class RootScaffold extends ConsumerStatefulWidget {
   const RootScaffold({super.key});
@@ -71,7 +72,9 @@ class _RootScaffoldState extends ConsumerState<RootScaffold> {
     );
   }
 
+  /// Same order as [kNavSections] — [IndexedStack] pairs them by position.
   static const _screens = [
+    TransactionsScreen(),
     BudgetScreen(),
     DealingsScreen(),
     ChecklistScreen(

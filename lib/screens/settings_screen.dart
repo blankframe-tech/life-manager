@@ -18,6 +18,7 @@ import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/delete_everything_dialog.dart';
 import 'history_screen.dart';
+import 'txn_categories_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -133,6 +134,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: ok ? c.inkSub : AppColors.rose),
                 );
               }),
+            ),
+          ]),
+          groupHeader(context, 'Transactions'),
+          cardGroup(context, [
+            ListTile(
+              leading: const Icon(CupertinoIcons.tag),
+              title: const Text('Categories'),
+              subtitle: Text(
+                  '${ref.watch(txnCategoriesProvider).length} categories for '
+                  'the spend/earn log'),
+              trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const TxnCategoriesScreen()),
+              ),
             ),
           ]),
           groupHeader(context, 'Sync'),

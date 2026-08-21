@@ -1,6 +1,9 @@
 {
-  "_comment": "Sample seed with fake data. Copy to `seed.json` (git-ignored) and replace with your own to bootstrap the app on first launch. All amounts are in whole taka.",
+  "_comment": "Sample seed with fake data. Copy to `seed.json` (git-ignored) and replace with your own to bootstrap the app on first launch. All amounts are in whole taka. For `txn` rows, `dueDate` is the date the money moved and `category` is free text.",
   "items": [
+    { "kind": "txn", "direction": "spend", "category": "Food", "amount": 250, "title": "Lunch at office", "dueDate": "2026-08-20" },
+    { "kind": "txn", "direction": "earn", "category": "Salary", "amount": 40000, "title": "August salary", "dueDate": "2026-08-17" },
+
     { "kind": "deal", "direction": "i_owe", "amount": 2000, "title": "Bank loan 2k" },
     { "kind": "deal", "direction": "they_owe", "amount": 400, "title": "Jane Doe 400" },
 

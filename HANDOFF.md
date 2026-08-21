@@ -11,8 +11,9 @@ both the iOS simulator and a physical iPhone
 
 ## What it is
 
-Offline-first Flutter app (iOS + Android) — Budget / Dealings / Tasks /
-Dreams (Dreams now also hosts the former Buy list as a "Shopping" section).
+Offline-first Flutter app (iOS + Android) — Transactions / Budget / Dealings /
+Tasks / Dreams (Dreams now also hosts the former Buy list as a "Shopping"
+section).
 Isar local DB is the source of truth; a background worker mirrors to
 Supabase. Architecture and file map are in `README.md`.
 
@@ -82,6 +83,39 @@ dart run build_runner build     # generates lib/models/*.g.dart
    cleanup in `main.dart` (run once, then reverted — not in the current
    diff). No real data was affected; verified `flutter analyze` clean and
    sync succeeding ("Already up to date") afterward.
+
+## Transactions tab (2026-08-20)
+
+New leftmost bottom-nav tab (`lib/screens/transactions_screen.dart`), which
+pushed Budget one place right and made Transactions the tab the app opens on.
+It's a plain log of money in and out — deliberately separate from Budget (a
+*plan* for the month) and Dealings (who owes whom).
+
+- **Data model: no migration.** Transactions are `Item` rows with
+  `kind = 'txn'`, reusing columns that already exist: `direction` holds
+  `spend`/`earn` (a new `TxnDirection`, alongside `DealDirection` — a row's
+  `kind` decides which vocabulary applies), `category` holds the free-text
+  category name, and **`due_date` holds the date the money moved**. That last
+  one is the only non-obvious reuse, so it's read through
+  `TxnFields.occurredAt` rather than directly. Adding an `occurred_at` column
+  instead would have meant a hand-run Supabase migration, and until it was
+  run every push would fail — i.e. it would break sync for *all* kinds, not
+  just this one. Nothing in `supabase/` needs re-running for this feature.
+- **Weekly rollup** lives in `lib/util/week.dart` as pure functions
+  (`startOfWeek`, `rollupByWeek`, `weekLabel`) so it's testable without Isar —
+  weeks run Monday→Sunday, newest first, and only weeks with entries appear.
+  `test/txn_test.dart` covers it, plus the screen itself via an overridden
+  `itemsProvider` stream (no Isar needed for a widget test).
+- **Categories are per-device**, in SharedPreferences
+  (`lib/services/txn_category_service.dart`), same as salary and the budget
+  split — they do *not* sync. Because a transaction stores the category as
+  text, a category deleted here (or created on another device) still displays
+  and still counts in the rollup; `mergeUsedCategories` is what keeps such
+  strays in the picker so editing an old row can't silently retag it. Manage
+  them at Settings → Transactions → Categories.
+- `Section` gained `singularLabel`, so the editor sheet says "New
+  Transaction" rather than "New Transactions" (this also fixed the existing
+  "New Tasks" / "New Dreams" wording).
 
 ## Auth setup — done (2026-08-11)
 
@@ -538,7 +572,9 @@ permissive:
    already synced during testing were kept (backfilled, not truncated — see
    "Auth setup"), so this is now about the seed file used for *future* fresh
    installs, not a live-data concern.
-4. Possible features: reorder, recurring items, budget carry-over.
+4. Possible features: reorder, recurring items, budget carry-over, and for
+   Transactions: a monthly rollup alongside the weekly one, and syncing the
+   category list (today it's per-device, by design — see "Transactions tab").
 
 ## Decisions on record
 
@@ -547,8 +583,10 @@ permissive:
 - `path_provider_foundation` pinned to 2.3.2 in `dependency_overrides` — 2.5.0+
   pulls an Apple-only `objective_c` build hook that crashes when the Dart SDK
   path contains a space.
-- One `items` table backs Budget/Dealings/Tasks/Buy/Dreams; each screen is a
-  filtered Isar stream. A second table, `history_events`, is a separate
+- One `items` table backs Transactions/Budget/Dealings/Tasks/Buy/Dreams; each
+  screen is a filtered Isar stream. New kinds reuse the existing generic
+  columns (`direction`/`category`/`due_date`) rather than adding columns, so
+  a feature never ships blocked on a hand-run Supabase migration. A second table, `history_events`, is a separate
   append-only log — deliberately not folded into `items`, since it has no
   soft-delete/update semantics and different RLS (insert+select only).
 - Soft deletes (tombstones) so deletions propagate across devices.
