@@ -65,6 +65,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.only(bottom: 32),
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+            child: Row(
+              children: [
+                Image.asset('assets/brand/logo.png',
+                    width: 40, height: 40, filterQuality: FilterQuality.medium),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Blankframe',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: c.ink,
+                        )),
+                    Text('Life manager',
+                        style: TextStyle(fontSize: 13, color: c.inkSub)),
+                  ],
+                ),
+              ],
+            ),
+          ),
           groupHeader(context, 'Appearance'),
           cardGroup(context, [
             Padding(
