@@ -257,14 +257,16 @@ class BudgetScreen extends ConsumerWidget {
                         ref.read(syncServiceProvider).save(item);
                       },
                       child: SizedBox(
-                        width: 32,
-                        height: 24,
-                        child: Icon(
-                          item.done
-                              ? CupertinoIcons.check_mark_circled_solid
-                              : CupertinoIcons.circle,
-                          color: item.done ? AppColors.indigo : c.hair,
-                          size: 22,
+                        width: 44,
+                        height: 44,
+                        child: Center(
+                          child: Icon(
+                            item.done
+                                ? CupertinoIcons.check_mark_circled_solid
+                                : CupertinoIcons.circle,
+                            color: item.done ? AppColors.indigo : c.hair,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),
