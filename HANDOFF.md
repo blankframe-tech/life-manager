@@ -576,6 +576,8 @@ permissive:
    Transactions: a monthly rollup alongside the weekly one, and syncing the
    category list (today it's per-device, by design — see "Transactions tab").
 
+5. **Write a PRD in ASD-STE100 format.** Cover items, transactions, auth, sync, offline use and data export/import: problem, users, goals and non-goals, functional and non-functional requirements, constraints and success metrics. Follow ASD-STE100 (Simplified Technical English): use only approved words and their approved meanings, keep procedural sentences to 20 words or fewer and descriptive sentences to 25 or fewer, write one instruction per sentence, use the active voice, and use the imperative for procedures. Save it as `PRD.md`.
+
 ## Decisions on record
 
 - `isar_community` fork, not official `isar` — the official 3.1.0 generator
