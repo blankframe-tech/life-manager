@@ -49,7 +49,7 @@ void main() {
   });
 
   group('a flipped byte fails', () {
-    final headerLen = () => ByteData.sublistView(file, 4, 8).getUint32(0);
+    int headerLen() => ByteData.sublistView(file, 4, 8).getUint32(0);
     Uint8List flip(int i) => Uint8List.fromList(file)..[i] ^= 0x01;
 
     test('magic', () {
