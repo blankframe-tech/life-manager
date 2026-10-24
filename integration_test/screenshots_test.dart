@@ -128,7 +128,7 @@ void main() {
   }) async {
     SharedPreferences.setMockInitialValues({
       'onboarding_done_v2': onboarded,
-      'user_name': 'Nafiz',
+      'user_name': 'Sam',
       'monthly_salary': 50000.0,
       'module_intros_seen': introsSeen,
     });

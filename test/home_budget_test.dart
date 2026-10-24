@@ -23,7 +23,7 @@ void main() {
     await pumpV2(
       tester,
       const HomeScreen(),
-      prefs: {'user_name': 'Nafiz', 'monthly_salary': 50000.0},
+      prefs: {'user_name': 'Sam', 'monthly_salary': 50000.0},
       items: [
         item(
           ItemKind.task,
@@ -41,7 +41,7 @@ void main() {
       ],
     );
 
-    expect(find.textContaining(', Nafiz'), findsOneWidget);
+    expect(find.textContaining(', Sam'), findsOneWidget);
     expect(find.text("Here's your overview for today."), findsOneWidget);
     expect(find.text('Monthly Budget'), findsOneWidget);
     expect(find.text('৳20,000 / ৳32,500'), findsOneWidget); // needs
