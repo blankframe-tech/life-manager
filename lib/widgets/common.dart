@@ -315,23 +315,32 @@ class SectionCard extends StatelessWidget {
                     ),
                   ),
                   ?trailing,
-                  if (onViewAll != null)
-                    TextButton(
-                      onPressed: onViewAll,
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                      ),
-                      child: Semantics(
-                        label: 'View all $title',
-                        excludeSemantics: true,
-                        child: const Text('View all'),
-                      ),
-                    ),
                 ],
               ),
             ),
           ),
           Padding(padding: childPadding, child: child),
+          // Bottom-left, not in the title row: the FAB floats bottom-right and
+          // covered a top-right link on whichever card scrolled beneath it.
+          if (onViewAll != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: onViewAll,
+                  style: TextButton.styleFrom(
+                    minimumSize: const Size(44, 44),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                  ),
+                  child: Semantics(
+                    label: 'View all $title',
+                    excludeSemantics: true,
+                    child: const Text('View all'),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
