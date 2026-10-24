@@ -115,7 +115,7 @@ void main() {
   });
 
   group('vectors', () {
-    for (final name in ['ascii_small', 'unicode_backup']) {
+    for (final name in ['ascii_small', 'unicode_backup', 'nfd_passphrase']) {
       final f = File('test/vault/vectors/$name.json');
       test(name, () async {
         final v = jsonDecode(f.readAsStringSync()) as Map<String, dynamic>;
@@ -135,6 +135,12 @@ void main() {
         expect(utf8.decode(await VaultCodec.decrypt(env, key)), v['plaintext']);
       });
     }
+  });
+
+  test('NFD and NFC spellings of a passphrase derive the same key', () async {
+    final salt = header().salt;
+    expect(await VaultCodec.deriveKey('Cafe\u0301', salt, 1000),
+        await VaultCodec.deriveKey('Caf\u00e9', salt, 1000));
   });
 
   test('sample.lmvault opens with the documented passphrase', () async {

@@ -54,11 +54,14 @@ Test vectors: `test/vault/vectors/*.json`, plus `test/vault/vectors/sample.lmvau
 ## Key derivation
 
 ```
-key = PBKDF2(HMAC-SHA256, password = UTF-8(passphrase), salt, iterations, dkLen = 32 bytes)
+key = PBKDF2(HMAC-SHA256, password = UTF-8(NFC(passphrase)), salt, iterations, dkLen = 32 bytes)
 ```
 
-The passphrase is UTF-8 encoded **as typed, with no Unicode normalization**
-(`new TextEncoder().encode(passphrase)` in JS).
+The passphrase is **Unicode NFC normalized**, then UTF-8 encoded
+(`new TextEncoder().encode(passphrase.normalize('NFC'))` in JS). Different
+keyboards produce "é" as one code point or as "e" plus a combining accent; NFC
+makes both derive the same key. `test/vault/vectors/nfd_passphrase.json`
+checks this.
 
 ## Encryption
 
@@ -107,7 +110,7 @@ async function openVault(bytes /* Uint8Array */, passphrase) {
   const aad = bytes.slice(0, 8 + h);
   const header = JSON.parse(new TextDecoder().decode(bytes.slice(8, 8 + h)));
   const base = await crypto.subtle.importKey(
-    'raw', new TextEncoder().encode(passphrase), 'PBKDF2', false, ['deriveKey']);
+    'raw', new TextEncoder().encode(passphrase.normalize('NFC')), 'PBKDF2', false, ['deriveKey']);
   const key = await crypto.subtle.deriveKey(
     { name: 'PBKDF2', hash: 'SHA-256', salt: b64(header.salt), iterations: header.iterations },
     base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
@@ -125,7 +128,8 @@ block as `additionalData`, and append the result.
 
 ## Test vectors
 
-Each `test/vault/vectors/*.json` holds: `passphrase`, `iterations` (1000, for
+Each `test/vault/vectors/*.json` holds: `passphrase` (`nfd_passphrase.json`
+also has `passphraseNfc`), `iterations` (1000, for
 speed only), `salt` and `nonce` (base64), `headerJson` (the exact header bytes
 as a string), `plaintext`, `derivedKey` (base64, 32 bytes) and `file` (base64
 of the whole vault). An implementation is correct if it derives `derivedKey`,

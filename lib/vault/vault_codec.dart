@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:cryptography/cryptography.dart';
 import 'package:flutter/foundation.dart';
+import 'package:unorm_dart/unorm_dart.dart' as unorm;
 
 /// Pure encode / decode of the `.lmvault` file. No I/O, no Isar.
 ///
@@ -33,8 +34,10 @@ class VaultCodec {
 
   static final _aes = AesGcm.with256bits();
 
-  /// PBKDF2-HMAC-SHA256 → 32-byte AES key. The passphrase is UTF-8 encoded
-  /// as-is (no Unicode normalization), exactly like `TextEncoder` in JS.
+  /// PBKDF2-HMAC-SHA256 → 32-byte AES key. The passphrase is Unicode NFC
+  /// normalized, then UTF-8 encoded — `TextEncoder().encode(p.normalize('NFC'))`
+  /// in JS — so an iPhone keyboard and a desktop browser that compose "é"
+  /// differently still derive the same key.
   static Future<Uint8List> deriveKey(
       String passphrase, List<int> salt, int iterations) async {
     final key = await Pbkdf2(
@@ -42,7 +45,7 @@ class VaultCodec {
       iterations: iterations,
       bits: 256,
     ).deriveKey(
-      secretKey: SecretKey(utf8.encode(passphrase)),
+      secretKey: SecretKey(utf8.encode(unorm.nfc(passphrase))),
       nonce: salt,
     );
     return Uint8List.fromList(await key.extractBytes());

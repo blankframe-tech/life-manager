@@ -1,0 +1,13 @@
+{
+  "description": "Passphrase given in NFD (decomposed). Readers must NFC-normalize before UTF-8; derivedKey is PBKDF2 over UTF-8(NFC(passphrase)).",
+  "note": "iterations is 1000 ONLY so the vectors run fast. Real vaults use 600000.",
+  "passphrase": "Café München",
+  "passphraseNfc": "Café München",
+  "iterations": 1000,
+  "salt": "ICEiIyQlJicoKSorLC0uLw==",
+  "nonce": "wMHCw8TFxsfIycrL",
+  "headerJson": "{\"version\":1,\"kdf\":\"PBKDF2-HMAC-SHA256\",\"iterations\":1000,\"salt\":\"ICEiIyQlJicoKSorLC0uLw==\",\"cipher\":\"AES-256-GCM\",\"nonce\":\"wMHCw8TFxsfIycrL\",\"createdAt\":\"2026-10-24T00:00:00.000Z\",\"updatedAt\":\"2026-10-24T01:00:00.000Z\",\"deviceId\":\"test-vector-device\"}",
+  "plaintext": "NFC check: the key must equal the one for \"Café München\"",
+  "derivedKey": "0eePatJGn96ni32I83fkkZtm2P22t3NmdF+qp5tXDEQ=",
+  "file": "TE1WMQAAAPx7InZlcnNpb24iOjEsImtkZiI6IlBCS0RGMi1ITUFDLVNIQTI1NiIsIml0ZXJhdGlvbnMiOjEwMDAsInNhbHQiOiJJQ0VpSXlRbEppY29LU29yTEMwdUx3PT0iLCJjaXBoZXIiOiJBRVMtMjU2LUdDTSIsIm5vbmNlIjoid01IQ3c4VEZ4c2ZJeWNyTCIsImNyZWF0ZWRBdCI6IjIwMjYtMTAtMjRUMDA6MDA6MDAuMDAwWiIsInVwZGF0ZWRBdCI6IjIwMjYtMTAtMjRUMDE6MDA6MDAuMDAwWiIsImRldmljZUlkIjoidGVzdC12ZWN0b3ItZGV2aWNlIn2CkxDOUO+JZYVZJQNTDeEbI4aYG1XJg0lNguLVrR4my98Qw0ReM8B5n0P1ay1pZ4Sfs5VfC3Zx5582Yn8V1YZhFGaOHHc+lQjnig=="
+}
