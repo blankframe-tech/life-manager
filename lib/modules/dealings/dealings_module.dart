@@ -85,8 +85,13 @@ class _NetCard extends ConsumerWidget {
       onViewAll: () => openModule(context, ref, module),
       child: Row(
         children: [
-          _figure(context, 'Owed to me', money(owed), c.positive),
-          _figure(context, 'I owe', money(owe), c.negative),
+          _figure(
+            context,
+            'Owed to me',
+            money(owed),
+            owed > 0 ? c.positive : c.ink,
+          ),
+          _figure(context, 'I owe', money(owe), owe > 0 ? c.negative : c.ink),
           _figure(
             context,
             'Net',
