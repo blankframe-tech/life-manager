@@ -5,14 +5,12 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-import '../models/history_event.dart';
-import '../models/item.dart';
 import '../services/backup_service.dart';
+import '../store/local_store.dart';
 import 'vault_codec.dart';
 
 export 'vault_codec.dart'
@@ -30,14 +28,14 @@ export 'vault_codec.dart'
 /// also written to the iOS Keychain, never to a plain file.
 class VaultService {
   VaultService(
-    this.isar, {
+    this.store, {
     required this.prefs,
     BackupService? backup,
     Future<Directory> Function()? documentsDir,
     FlutterSecureStorage? keychain,
     this.iterations = VaultCodec.defaultIterations,
     this.autoSaveDelay = const Duration(seconds: 2),
-  }) : backup = backup ?? BackupService(isar),
+  }) : backup = backup ?? BackupService(store),
        _documentsDir = documentsDir ?? getApplicationDocumentsDirectory,
        _keychain = keychain ?? _defaultKeychain;
 
@@ -53,7 +51,7 @@ class VaultService {
     ),
   );
 
-  final Isar isar;
+  final LocalStore store;
   final SharedPreferences prefs;
   final BackupService backup;
   final int iterations;
@@ -241,9 +239,7 @@ class VaultService {
       });
     }
 
-    _subs
-      ..add(isar.items.watchLazy().listen((_) => schedule()))
-      ..add(isar.historyEvents.watchLazy().listen((_) => schedule()));
+    _subs.add(store.changes.listen((_) => schedule()));
   }
 
   void _stopAutoSave() {

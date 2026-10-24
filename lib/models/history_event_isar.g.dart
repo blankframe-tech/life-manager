@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'history_event.dart';
+part of 'history_event_isar.dart';
 
 // **************************************************************************
 // IsarCollectionGenerator

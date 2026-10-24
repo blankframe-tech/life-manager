@@ -4,13 +4,13 @@ import 'dart:io' show SocketException;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:http/http.dart' show ClientException;
-import 'package:isar_community/isar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/supabase_config.dart';
 import '../models/history_event.dart';
 import '../models/item.dart';
+import '../store/local_store.dart';
 import '../util/net.dart';
 
 export '../util/net.dart' show isOfflineError;
@@ -45,8 +45,8 @@ String describeSyncError(Object error) {
 
 /// Offline-first sync engine over the single `items` table.
 ///
-/// Every write lands in Isar instantly (the UI reacts to Isar streams, so it
-/// never waits on the network) and is flagged `isSynced = false`. A background
+/// Every write lands in the local store instantly (the UI reacts to its
+/// streams, so it never waits on the network) and is flagged `isSynced = false`. A background
 /// worker pushes pending rows to Supabase; a realtime subscription pulls remote
 /// changes back. Deletes are soft (tombstones) so they propagate across
 /// devices. Conflict resolution is last-write-wins on `updatedAt`.
@@ -70,7 +70,7 @@ String describeSyncError(Object error) {
 /// When Supabase isn't configured the engine is inert — the app is a fully
 /// working local-only tracker.
 class SyncService {
-  SyncService(this.isar) {
+  SyncService(this.store) {
     if (SupabaseConfig.isConfigured) {
       final session = _db.auth.currentSession;
       _enabled = session != null;
@@ -127,7 +127,7 @@ class SyncService {
     }
   }
 
-  final Isar isar;
+  final LocalStore store;
 
   /// A session exists — pushes are worth attempting. See the class doc.
   bool _enabled = false;
@@ -232,8 +232,8 @@ class SyncService {
   }
 
   Future<int> _pendingCount() async =>
-      await isar.items.filter().isSyncedEqualTo(false).count() +
-      await isar.historyEvents.filter().isSyncedEqualTo(false).count();
+      (await store.items(synced: false)).length +
+      (await store.history(synced: false)).length;
 
   /// Last time a local push to Supabase succeeded — null if never synced.
   final ValueNotifier<DateTime?> lastSyncedAt = ValueNotifier(null);
@@ -266,14 +266,13 @@ class SyncService {
   /// (created / edited / completed / uncompleted) — skipped for an undo of a
   /// delete, since the earlier `deleted` event already covers that moment.
   Future<void> save(Item item) async {
-    final existing =
-        await isar.items.filter().uuidEqualTo(item.uuid).findFirst();
+    final existing = await store.item(item.uuid);
     final isNew = existing == null;
     final doneChanged = existing != null && existing.done != item.done;
     final wasUndelete = existing != null && existing.isDeleted && !item.isDeleted;
     item.updatedAt = DateTime.now().toUtc();
     item.isSynced = false;
-    await isar.writeTxn(() => isar.items.put(item));
+    await store.putItems([item]);
     if (!wasUndelete) {
       await _logHistory(
         item,
@@ -294,7 +293,7 @@ class SyncService {
     item.isDeleted = true;
     item.updatedAt = DateTime.now().toUtc();
     item.isSynced = false;
-    await isar.writeTxn(() => isar.items.put(item));
+    await store.putItems([item]);
     await _logHistory(item, HistoryAction.deleted);
     unawaited(pushPending());
   }
@@ -308,7 +307,7 @@ class SyncService {
       ..action = action
       ..timestamp = DateTime.now().toUtc()
       ..isSynced = false;
-    await isar.writeTxn(() => isar.historyEvents.put(event));
+    await store.putHistory([event]);
   }
 
   /// Push every not-yet-synced local row (items + history) to the cloud.
@@ -334,15 +333,14 @@ class SyncService {
   }
 
   Future<({int pushed, int failed})> _pushPendingItems() async {
-    final pending =
-        await isar.items.filter().isSyncedEqualTo(false).findAll();
+    final pending = await store.items(synced: false);
     var pushed = 0;
     var failed = 0;
     for (final item in pending) {
       try {
         await _db.from('items').upsert(item.toMap(), onConflict: 'uuid');
         item.isSynced = true;
-        await isar.writeTxn(() => isar.items.put(item));
+        await store.putItems([item]);
         lastSyncedAt.value = DateTime.now();
         _markReachable();
         pushed++;
@@ -366,8 +364,7 @@ class SyncService {
     // A failed item push already told us the network is down; skip rather than
     // repeat the discovery against a second table.
     if (!_reachable) return (pushed: 0, failed: 0);
-    final pending =
-        await isar.historyEvents.filter().isSyncedEqualTo(false).findAll();
+    final pending = await store.history(synced: false);
     var pushed = 0;
     var failed = 0;
     for (final event in pending) {
@@ -376,7 +373,7 @@ class SyncService {
             .from('history_events')
             .upsert(event.toMap(), onConflict: 'uuid');
         event.isSynced = true;
-        await isar.writeTxn(() => isar.historyEvents.put(event));
+        await store.putHistory([event]);
         _markReachable();
         pushed++;
       } catch (e) {
@@ -440,37 +437,28 @@ class SyncService {
   }
 
   Future<void> _applyRemote(List<Map<String, dynamic>> rows) async {
-    await isar.writeTxn(() async {
-      for (final row in rows) {
-        final remote = Item.fromMap(row);
-        final local = await isar.items
-            .filter()
-            .uuidEqualTo(remote.uuid)
-            .findFirst();
-        // Last-write-wins: only accept the remote copy if it's newer.
-        if (local == null || local.updatedAt.isBefore(remote.updatedAt)) {
-          remote.id = local?.id ?? Isar.autoIncrement;
-          await isar.items.put(remote);
-        }
+    final newer = <Item>[];
+    for (final row in rows) {
+      final remote = Item.fromMap(row);
+      final local = await store.item(remote.uuid);
+      // Last-write-wins: only accept the remote copy if it's newer.
+      if (local == null || local.updatedAt.isBefore(remote.updatedAt)) {
+        if (local != null) remote.id = local.id;
+        newer.add(remote);
       }
-    });
+    }
+    if (newer.isNotEmpty) await store.putItems(newer);
   }
 
   /// History rows are immutable once created, so unlike [_applyRemote] there's
   /// no last-write-wins merge — just insert whatever isn't already local.
   Future<void> _applyRemoteHistory(List<Map<String, dynamic>> rows) async {
-    await isar.writeTxn(() async {
-      for (final row in rows) {
-        final remote = HistoryEvent.fromMap(row);
-        final local = await isar.historyEvents
-            .filter()
-            .uuidEqualTo(remote.uuid)
-            .findFirst();
-        if (local == null) {
-          await isar.historyEvents.put(remote);
-        }
-      }
-    });
+    final known = {for (final h in await store.history()) h.uuid};
+    final fresh = [
+      for (final row in rows)
+        if (!known.contains(row['uuid'])) HistoryEvent.fromMap(row),
+    ];
+    if (fresh.isNotEmpty) await store.putHistory(fresh);
   }
 
   void dispose() {

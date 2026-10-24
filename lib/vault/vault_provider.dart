@@ -8,7 +8,7 @@ export 'vault_service.dart';
 /// The encrypted vault file — Settings → Data & Vault.
 final vaultServiceProvider = Provider<VaultService>((ref) {
   final svc = VaultService(
-    ref.watch(isarProvider),
+    ref.watch(storeProvider),
     prefs: ref.watch(sharedPreferencesProvider),
     backup: ref.watch(backupServiceProvider),
   );

@@ -1,11 +1,9 @@
-import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 import '../data/seed_loader.dart';
-import '../models/history_event.dart';
-import '../models/item.dart';
+import '../store/local_store.dart';
 import 'sync_service.dart';
 
 /// Wipes everything and returns the app to a fresh-install state.
@@ -24,9 +22,9 @@ import 'sync_service.dart';
 ///  4. seed marker, so the next launch doesn't re-import `seed.json`
 ///  5. preferences
 class ResetService {
-  ResetService(this.isar, this.prefs, this.sync);
+  ResetService(this.store, this.prefs, this.sync);
 
-  final Isar isar;
+  final LocalStore store;
   final SharedPreferences prefs;
 
   /// Needed only to cut the realtime subscriptions for the duration of the
@@ -99,9 +97,9 @@ class ResetService {
       }
     }
 
-    final localItems = await isar.items.count();
-    final localHistory = await isar.historyEvents.count();
-    await isar.writeTxn(() => isar.clear());
+    final localItems = (await store.items()).length;
+    final localHistory = (await store.history()).length;
+    await store.clear();
 
     // Without this the next launch treats an empty DB as a first run and
     // re-imports the bundled seed, quietly undoing the reset.

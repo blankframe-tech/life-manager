@@ -40,7 +40,7 @@ class AuthGate extends ConsumerWidget {
         // by a marker file), so calling it on every rebuild is harmless, and
         // it no-ops without writing the marker when the cloud is unreachable,
         // so an offline launch simply defers the decision.
-        unawaited(SeedLoader.seedIfNeeded(ref.read(isarProvider)));
+        unawaited(SeedLoader.seedIfNeeded(ref.read(storeProvider)));
         return const RootScaffold();
     }
   }

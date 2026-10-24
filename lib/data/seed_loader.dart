@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config/supabase_config.dart';
 import '../models/item.dart';
+import '../store/local_store.dart';
 
 /// One-time local bootstrap from `assets/seed/seed.json`.
 ///
@@ -43,7 +43,7 @@ class SeedLoader {
       : _uuid.v5(_rootNamespace, 'life-manager::owner::$userId');
 
   /// Seeds the DB the first time only. Safe to call on every launch.
-  static Future<void> seedIfNeeded(Isar isar) async {
+  static Future<void> seedIfNeeded(LocalStore store) async {
     final marker = await _markerFile();
     if (await marker.exists()) return;
 
@@ -69,7 +69,7 @@ class SeedLoader {
         : null;
     final items = await _readSeed(ownerId);
     if (items.isNotEmpty) {
-      await isar.writeTxn(() => isar.items.putAll(items));
+      await store.putItems(items);
     }
     // Mark as seeded even when empty, so we don't re-scan the bundle forever.
     await marker.create(recursive: true);

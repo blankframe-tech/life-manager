@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isar_community/isar.dart';
+import 'package:life_manager/store/isar_store.dart';
 import 'package:life_manager/models/history_event.dart';
 import 'package:life_manager/models/item.dart';
 import 'package:life_manager/theme/app_theme.dart';
@@ -32,7 +33,7 @@ void main() {
                 name: 'ui',
               );
               final svc = VaultService(
-                isar,
+                IsarStore(isar),
                 prefs: await SharedPreferences.getInstance(),
                 documentsDir: () async => dir,
                 iterations: 1000,
