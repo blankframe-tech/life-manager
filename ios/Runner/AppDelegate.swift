@@ -44,5 +44,81 @@ import UIKit
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    if let registrar = engineBridge.pluginRegistry.registrar(forPlugin: "VaultOpenIn") {
+      VaultOpenIn.register(with: registrar)
+    }
+  }
+}
+
+/// Hands `.lmvault` files opened from Files / AirDrop to Dart
+/// (`lib/vault/vault_open_in.dart`), on cold and warm start.
+///
+/// With `LSSupportsOpeningDocumentsInPlace` the URL can point outside the
+/// sandbox (iCloud Drive) and is only readable inside a security-scoped access,
+/// which Dart's `File` can't open. So the file is copied into tmp here and Dart
+/// gets that path.
+final class VaultOpenIn: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate {
+  private var channel: FlutterMethodChannel?
+  private var pending: [String] = []
+  private var dartReady = false
+
+  static func register(with registrar: FlutterPluginRegistrar) {
+    let instance = VaultOpenIn()
+    let channel = FlutterMethodChannel(
+      name: "life_manager/vault_open_in", binaryMessenger: registrar.messenger())
+    instance.channel = channel
+    registrar.addMethodCallDelegate(instance, channel: channel)
+    registrar.addSceneDelegate(instance)
+  }
+
+  func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    guard call.method == "ready" else { return result(FlutterMethodNotImplemented) }
+    dartReady = true
+    result(pending)
+    pending.removeAll()
+  }
+
+  func scene(
+    _ scene: UIScene, willConnectTo session: UISceneSession,
+    options connectionOptions: UIScene.ConnectionOptions?
+  ) -> Bool {
+    guard let contexts = connectionOptions?.urlContexts else { return false }
+    return self.scene(scene, openURLContexts: contexts)
+  }
+
+  func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) -> Bool {
+    var handled = false
+    for context in URLContexts where context.url.pathExtension.lowercased() == "lmvault" {
+      guard let path = copyToTemp(context.url) else { continue }
+      handled = true
+      if dartReady {
+        channel?.invokeMethod("open", arguments: path)
+      } else {
+        pending.append(path)
+      }
+    }
+    return handled
+  }
+
+  private func copyToTemp(_ url: URL) -> String? {
+    let scoped = url.startAccessingSecurityScopedResource()
+    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+    let dir = FileManager.default.temporaryDirectory
+      .appendingPathComponent("opened-vaults", isDirectory: true)
+    let dest = dir.appendingPathComponent(UUID().uuidString + ".lmvault")
+    do {
+      try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+      // Coordinated read: the file may still be downloading from iCloud.
+      var copyError: Error?
+      var coordError: NSError?
+      NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordError) {
+        do { try FileManager.default.copyItem(at: $0, to: dest) } catch { copyError = error }
+      }
+      if let e = coordError ?? copyError { throw e }
+      return dest.path
+    } catch {
+      NSLog("Could not open vault \(url.lastPathComponent): \(error)")
+      return nil
+    }
   }
 }
