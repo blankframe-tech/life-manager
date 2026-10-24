@@ -13,7 +13,8 @@ import UIKit
 
   /// Keeps the local Isar database out of iCloud / iTunes backups.
   ///
-  /// The DB lives in `Documents` (that's where `path_provider` points Isar) and
+  /// The DB lives in `Library/Application Support` (see `lib/services/local_db.dart`;
+  /// Documents is visible in Files and holds only the encrypted vault) and
   /// holds real financial figures with no encryption at rest — Isar 3 has no
   /// encryption support — so allowing the platform to copy it off-device is the
   /// iOS counterpart of `android:allowBackup="true"`. Nothing is lost by
@@ -22,12 +23,12 @@ import UIKit
   /// Runs on every launch because the flag is per-file and the files are
   /// created by Isar after the first launch, not by us.
   private func excludeLocalDatabaseFromBackup() {
-    guard let documents = FileManager.default.urls(
-      for: .documentDirectory, in: .userDomainMask
+    guard let support = FileManager.default.urls(
+      for: .applicationSupportDirectory, in: .userDomainMask
     ).first else { return }
 
     for name in ["default.isar", "default.isar.lock"] {
-      var url = documents.appendingPathComponent(name)
+      var url = support.appendingPathComponent(name)
       guard FileManager.default.fileExists(atPath: url.path) else { continue }
       do {
         var values = URLResourceValues()

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:ffi';
 import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -10,6 +9,8 @@ import 'package:life_manager/models/item.dart';
 import 'package:life_manager/vault/vault_codec.dart';
 import 'package:life_manager/vault/vault_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/isar_core.dart';
 
 const pass = 'correct horse battery staple';
 
@@ -24,20 +25,7 @@ void main() {
   var n = 0;
 
   setUpAll(() async {
-    // Use the macOS IsarCore shipped in isar_community_flutter_libs; elsewhere
-    // let Isar download its binary.
-    final config = jsonDecode(
-        File('.dart_tool/package_config.json').readAsStringSync()) as Map;
-    final pkg = (config['packages'] as List).cast<Map>().firstWhere(
-        (p) => p['name'] == 'isar_community_flutter_libs');
-    final dylib = Uri.parse('.dart_tool/')
-        .resolve('${pkg['rootUri']}/')
-        .resolve('macos/libisar.dylib')
-        .toFilePath();
-    await Isar.initializeIsarCore(
-      libraries: Platform.isMacOS ? {Abi.current(): dylib} : const {},
-      download: !Platform.isMacOS,
-    );
+    await initIsarForTests();
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
   });

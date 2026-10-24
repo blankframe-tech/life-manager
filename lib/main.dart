@@ -2,18 +2,15 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar_community/isar.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'config/supabase_config.dart';
 import 'data/seed_loader.dart';
-import 'models/history_event.dart';
-import 'models/item.dart';
 import 'providers/providers.dart';
 import 'screens/onboarding_screen.dart';
 import 'services/budget_reset_service.dart';
+import 'services/local_db.dart';
 import 'services/secure_session_storage.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_lock_gate.dart';
@@ -60,12 +57,9 @@ Future<void> main() async {
     }
   }
 
-  // Local DB — the source of truth the UI renders from.
-  final dir = await getApplicationDocumentsDirectory();
-  final isar = await Isar.open([
-    ItemSchema,
-    HistoryEventSchema,
-  ], directory: dir.path);
+  // Local DB — the source of truth the UI renders from. Lives in Application
+  // Support; Documents is visible in Files and holds only the encrypted vault.
+  final isar = await openLocalDb();
 
   // One-time bootstrap from the bundled seed (if present). When Supabase is
   // configured this instead runs from AuthGate once a session exists — an
