@@ -12,9 +12,9 @@ import '../config/supabase_config.dart';
 import '../providers/providers.dart';
 import '../services/backup_service.dart';
 import '../services/reset_service.dart';
-import '../services/vault_hooks.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
+import '../vault/vault_ui.dart';
 import '../widgets/common.dart';
 import '../widgets/delete_everything_dialog.dart';
 import 'history_screen.dart';
@@ -127,8 +127,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 leading: Icon(CupertinoIcons.device_phone_portrait),
                 title: Text('On this device only'),
                 subtitle: Text(
-                  'Nothing leaves your phone. Export a backup '
-                  'from Data & Vault below.',
+                  'Nothing leaves your phone. Set up the encrypted '
+                  'vault in Data & Vault below.',
                 ),
               ),
             ]),
@@ -226,7 +226,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
               onTap: _busy ? null : _importData,
             ),
-            ..._vaultTiles(context),
+            const VaultTiles(),
             ListTile(
               leading: Icon(CupertinoIcons.trash, color: c.negative),
               title: Text(
@@ -466,32 +466,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         const SnackBar(content: Text('Left off — the check didn\'t pass')),
       );
     }
-  }
-
-  /// Placeholders for the encrypted vault — see `services/vault_hooks.dart`.
-  List<Widget> _vaultTiles(BuildContext context) {
-    final vault = ref.watch(vaultActionsProvider);
-    final soon = vault.available ? null : const Text('Coming soon');
-    return [
-      ListTile(
-        leading: const Icon(CupertinoIcons.lock_rotation),
-        title: const Text('Save encrypted vault'),
-        subtitle: soon ?? const Text('A passphrase-protected backup file'),
-        onTap: () => vault.saveVault(context),
-      ),
-      ListTile(
-        leading: const Icon(CupertinoIcons.folder_open),
-        title: const Text('Open vault file'),
-        subtitle: soon,
-        onTap: () => vault.openVault(context),
-      ),
-      ListTile(
-        leading: const Icon(CupertinoIcons.textformat_abc_dottedunderline),
-        title: const Text('Change passphrase'),
-        subtitle: soon,
-        onTap: () => vault.changePassphrase(context),
-      ),
-    ];
   }
 
   Future<void> _syncNow(BuildContext context, SyncService sync) async {

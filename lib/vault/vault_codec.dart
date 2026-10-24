@@ -39,22 +39,29 @@ class VaultCodec {
   /// in JS — so an iPhone keyboard and a desktop browser that compose "é"
   /// differently still derive the same key.
   static Future<Uint8List> deriveKey(
-      String passphrase, List<int> salt, int iterations) async {
-    final key = await Pbkdf2(
-      macAlgorithm: Hmac.sha256(),
-      iterations: iterations,
-      bits: 256,
-    ).deriveKey(
-      secretKey: SecretKey(utf8.encode(unorm.nfc(passphrase))),
-      nonce: salt,
-    );
+    String passphrase,
+    List<int> salt,
+    int iterations,
+  ) async {
+    final key =
+        await Pbkdf2(
+          macAlgorithm: Hmac.sha256(),
+          iterations: iterations,
+          bits: 256,
+        ).deriveKey(
+          secretKey: SecretKey(utf8.encode(unorm.nfc(passphrase))),
+          nonce: salt,
+        );
     return Uint8List.fromList(await key.extractBytes());
   }
 
   /// [deriveKey] on a background isolate (600k rounds take seconds). On the
   /// web `compute` runs inline, but there the KDF is async WebCrypto anyway.
   static Future<Uint8List> deriveKeyInBackground(
-          String passphrase, List<int> salt, int iterations) =>
+    String passphrase,
+    List<int> salt,
+    int iterations,
+  ) =>
       compute(_deriveEntry, (passphrase, Uint8List.fromList(salt), iterations));
 
   static Future<Uint8List> _deriveEntry((String, Uint8List, int) a) =>
@@ -89,8 +96,9 @@ class VaultCodec {
         throw const VaultFormatException("That isn't a Life Manager vault.");
       }
     }
-    final len = ByteData.sublistView(Uint8List.fromList(bytes.sublist(4, 8)))
-        .getUint32(0);
+    final len = ByteData.sublistView(
+      Uint8List.fromList(bytes.sublist(4, 8)),
+    ).getUint32(0);
     if (len > maxHeaderLength || 8 + len + tagLength > bytes.length) {
       throw const VaultFormatException('Vault header is damaged.');
     }
@@ -98,8 +106,9 @@ class VaultCodec {
     final VaultHeader header;
     try {
       header = VaultHeader.fromJson(
-          jsonDecode(utf8.decode(bytes.sublist(8, headerEnd)))
-              as Map<String, dynamic>);
+        jsonDecode(utf8.decode(bytes.sublist(8, headerEnd)))
+            as Map<String, dynamic>,
+      );
     } on VaultException {
       rethrow;
     } catch (_) {
@@ -136,8 +145,7 @@ class VaultCodec {
   static Uint8List _headerBlock(VaultHeader header) {
     final json = utf8.encode(jsonEncode(header.toJson()));
     final len = ByteData(4)..setUint32(0, json.length);
-    return Uint8List.fromList(
-        [...magic, ...len.buffer.asUint8List(), ...json]);
+    return Uint8List.fromList([...magic, ...len.buffer.asUint8List(), ...json]);
   }
 }
 
@@ -162,16 +170,16 @@ class VaultHeader {
   final String deviceId;
 
   Map<String, dynamic> toJson() => {
-        'version': version,
-        'kdf': VaultCodec.kdfName,
-        'iterations': iterations,
-        'salt': base64.encode(salt),
-        'cipher': VaultCodec.cipherName,
-        'nonce': base64.encode(nonce),
-        'createdAt': createdAt.toUtc().toIso8601String(),
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        'deviceId': deviceId,
-      };
+    'version': version,
+    'kdf': VaultCodec.kdfName,
+    'iterations': iterations,
+    'salt': base64.encode(salt),
+    'cipher': VaultCodec.cipherName,
+    'nonce': base64.encode(nonce),
+    'createdAt': createdAt.toUtc().toIso8601String(),
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    'deviceId': deviceId,
+  };
 
   static VaultHeader fromJson(Map<String, dynamic> m) {
     final version = m['version'];
@@ -180,10 +188,12 @@ class VaultHeader {
     }
     if (version > VaultCodec.formatVersion) {
       throw VaultFormatException(
-          'This vault was written by a newer version of the app '
-          '(format $version, this build reads ${VaultCodec.formatVersion}).');
+        'This vault was written by a newer version of the app '
+        '(format $version, this build reads ${VaultCodec.formatVersion}).',
+      );
     }
-    if (m['kdf'] != VaultCodec.kdfName || m['cipher'] != VaultCodec.cipherName) {
+    if (m['kdf'] != VaultCodec.kdfName ||
+        m['cipher'] != VaultCodec.cipherName) {
       throw const VaultFormatException('Unsupported vault encryption.');
     }
     final iterations = m['iterations'];
@@ -212,8 +222,11 @@ class VaultHeader {
 
 /// A parsed but not yet authenticated vault.
 class VaultEnvelope {
-  const VaultEnvelope(
-      {required this.header, required this.aad, required this.body});
+  const VaultEnvelope({
+    required this.header,
+    required this.aad,
+    required this.body,
+  });
 
   final VaultHeader header;
 
@@ -242,5 +255,5 @@ class VaultFormatException extends VaultException {
 /// Wrong passphrase, or the file was modified. AES-GCM can't tell them apart.
 class VaultAuthException extends VaultException {
   const VaultAuthException()
-      : super('Wrong passphrase, or the vault file was modified.');
+    : super('Wrong passphrase, or the vault file was modified.');
 }

@@ -37,9 +37,9 @@ class VaultService {
     FlutterSecureStorage? keychain,
     this.iterations = VaultCodec.defaultIterations,
     this.autoSaveDelay = const Duration(seconds: 2),
-  })  : backup = backup ?? BackupService(isar),
-        _documentsDir = documentsDir ?? getApplicationDocumentsDirectory,
-        _keychain = keychain ?? _defaultKeychain;
+  }) : backup = backup ?? BackupService(isar),
+       _documentsDir = documentsDir ?? getApplicationDocumentsDirectory,
+       _keychain = keychain ?? _defaultKeychain;
 
   static const fileName = 'LifeManager.lmvault';
   static const _keychainKey = 'vault-passphrase';
@@ -85,6 +85,12 @@ class VaultService {
   /// True once a passphrase is set for this session; auto-save is on.
   bool get isUnlocked => _passphrase != null;
 
+  /// [isUnlocked] as a listenable, for the Settings status row.
+  final unlocked = ValueNotifier<bool>(false);
+
+  /// Whether `LifeManager.lmvault` exists yet.
+  Future<bool> get exists async => (await vaultFile).exists();
+
   Future<File> get vaultFile async =>
       File('${(await _documentsDir()).path}/$fileName');
 
@@ -99,42 +105,47 @@ class VaultService {
     String passphrase, {
     bool remember = false,
     bool replaceExisting = false,
-  }) =>
-      _serial(() async {
-        _checkPassphrase(passphrase);
-        if (isUnlocked) {
-          if (passphrase != _passphrase) {
-            throw StateError('Vault is unlocked; use changePassphrase.');
-          }
-          return _write();
-        }
-        _knownModified = null;
-        // Verify + merge before touching session state.
-        if (replaceExisting) {
-          _knownModified = await _modified();
-        } else {
-          await _merge(passphrase);
-        }
-        await _startSession(passphrase, remember: remember);
-        return _write(skipMerge: true);
-      });
+  }) => _serial(() async {
+    _checkPassphrase(passphrase);
+    if (isUnlocked) {
+      if (passphrase != _passphrase) {
+        throw StateError('Vault is unlocked; use changePassphrase.');
+      }
+      return _write();
+    }
+    _knownModified = null;
+    // Verify + merge before touching session state.
+    if (replaceExisting) {
+      _knownModified = await _modified();
+    } else {
+      await _merge(passphrase);
+    }
+    await _startSession(passphrase, remember: remember);
+    return _write(skipMerge: true);
+  });
 
   /// Decrypts [file] and merges it into the local DB (newer local edits win).
   /// If no passphrase is set yet, [passphrase] becomes the session passphrase.
-  Future<ImportReport> openVault(File file, String passphrase,
-          {bool remember = false}) =>
-      _serial(() async {
-        _checkPassphrase(passphrase);
-        final env = VaultCodec.parse(await file.readAsBytes());
-        final key = await _keyFor(env.header, passphrase);
-        final plain = await VaultCodec.decrypt(env, key);
-        final report = await backup.importJson(utf8.decode(plain));
-        if (!isUnlocked) {
-          await _startSession(passphrase, remember: remember);
-          _createdAt = env.header.createdAt;
-        }
-        return report;
-      });
+  Future<ImportReport> openVault(
+    File file,
+    String passphrase, {
+    bool remember = false,
+  }) => _serial(() async {
+    _checkPassphrase(passphrase);
+    final env = VaultCodec.parse(await file.readAsBytes());
+    final key = await _keyFor(env.header, passphrase);
+    final plain = await VaultCodec.decrypt(env, key);
+    final report = await backup.importJson(utf8.decode(plain));
+    if (!isUnlocked) {
+      await _startSession(passphrase, remember: remember);
+      _createdAt = env.header.createdAt;
+    }
+    // Just merged our own file: the next auto-save needn't re-read it.
+    if (file.absolute.path == (await vaultFile).absolute.path) {
+      _knownModified = await _modified();
+    }
+    return report;
+  });
 
   /// Re-encrypts the vault under [next] with a fresh salt.
   Future<File> changePassphrase(String current, String next) =>
@@ -144,30 +155,52 @@ class VaultService {
         }
         _checkPassphrase(next);
         final remembered = await _keychainHas();
-        await _merge(current); // keep anything written elsewhere under the old key
+        await _merge(
+          current,
+        ); // keep anything written elsewhere under the old key
         await _startSession(next, remember: remembered);
         return _write(skipMerge: true);
       });
 
-  /// Restores a remembered passphrase from the Keychain. False if none.
+  /// Writes the vault now with the session passphrase (Settings → Save now).
+  Future<File> saveNow() => _serial(() {
+    if (!isUnlocked) throw StateError('Vault is locked.');
+    return _write();
+  });
+
+  /// Unlocks with the passphrase remembered in the Keychain: merges the
+  /// existing vault (or creates one). False if nothing is remembered. Throws
+  /// [VaultAuthException] if the remembered passphrase no longer opens the
+  /// file; the vault then stays locked.
   Future<bool> unlockFromKeychain() async {
+    if (isUnlocked) return true;
     final saved = await _keychain.read(key: _keychainKey);
     if (saved == null) return false;
-    await _serial(() => _startSession(saved, remember: false));
+    final file = await vaultFile;
+    if (await file.exists()) {
+      await openVault(file, saved);
+    } else {
+      await saveVault(saved);
+    }
     return true;
   }
+
+  /// Whether a passphrase is remembered in the Keychain.
+  Future<bool> get remembered => _keychainHas();
 
   /// Ends the session: stops auto-save and drops the key from memory.
   /// [forget] also removes the passphrase from the Keychain.
   Future<void> lock({bool forget = false}) => _serial(() async {
-        _stopAutoSave();
-        _passphrase = _salt = _key = null;
-        if (forget) await _keychain.delete(key: _keychainKey);
-      });
+    _stopAutoSave();
+    _passphrase = _salt = _key = null;
+    unlocked.value = false;
+    if (forget) await _keychain.delete(key: _keychainKey);
+  });
 
   void dispose() {
     _stopAutoSave();
     lastSavedAt.dispose();
+    unlocked.dispose();
     lastError.dispose();
   }
 
@@ -177,11 +210,15 @@ class VaultService {
     if (p.isEmpty) throw ArgumentError('Passphrase must not be empty.');
   }
 
-  Future<void> _startSession(String passphrase, {required bool remember}) async {
+  Future<void> _startSession(
+    String passphrase, {
+    required bool remember,
+  }) async {
     final salt = _randomBytes(VaultCodec.saltLength);
     _key = await VaultCodec.deriveKeyInBackground(passphrase, salt, iterations);
     _salt = salt;
     _passphrase = passphrase;
+    unlocked.value = true;
     if (remember) {
       await _keychain.write(key: _keychainKey, value: passphrase);
     }
@@ -249,8 +286,10 @@ class VaultService {
     final modified = await _modified();
     if (modified == null || modified == _knownModified) return;
     final env = VaultCodec.parse(await (await vaultFile).readAsBytes());
-    final plain =
-        await VaultCodec.decrypt(env, await _keyFor(env.header, passphrase));
+    final plain = await VaultCodec.decrypt(
+      env,
+      await _keyFor(env.header, passphrase),
+    );
     await backup.importJson(utf8.decode(plain));
     _createdAt ??= env.header.createdAt;
     _knownModified = modified;

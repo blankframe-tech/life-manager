@@ -13,6 +13,8 @@ import 'services/budget_reset_service.dart';
 import 'services/local_db.dart';
 import 'services/secure_session_storage.dart';
 import 'theme/app_theme.dart';
+import 'vault/vault_open_in.dart';
+import 'vault/vault_ui.dart';
 import 'widgets/app_lock_gate.dart';
 import 'widgets/auth_gate.dart';
 
@@ -74,6 +76,9 @@ Future<void> main() async {
   // Un-tick any checked-off Needs items on the first launch of a new month.
   await resetNeedsIfNewMonth(isar, prefs);
 
+  // .lmvault files that launched the app from Files / AirDrop.
+  await VaultOpenIn.start();
+
   runApp(
     ProviderScope(
       overrides: [
@@ -97,7 +102,9 @@ class LifeManagerApp extends ConsumerWidget {
       theme: buildTheme(),
       darkTheme: buildTheme(brightness: Brightness.dark),
       themeMode: themeMode,
-      home: const AppLockGate(child: OnboardingGate(child: AuthGate())),
+      home: const AppLockGate(
+        child: VaultGate(child: OnboardingGate(child: AuthGate())),
+      ),
     );
   }
 }
