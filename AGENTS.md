@@ -9,6 +9,10 @@ Supabase sync exists but is off (`kCloudSyncEnabled` in `lib/app_modules.dart`).
 - **Theme:** colours come from `context.colors` / `ModuleAccent` in
   `lib/theme/app_theme.dart`. No raw hex in widgets. Keep text ≥ 4.5:1 (a test
   checks the tokens) and tap targets ≥ 44pt.
+- **Storage:** read and write items through `LocalStore` (`storeProvider`),
+  never Isar directly: the web build has no Isar. Web code lives in
+  `lib/web/` and `lib/boot/boot_web.dart` and must never use browser storage
+  (a test greps for it). See [docs/WEB.md](docs/WEB.md).
 - **Verify:** `scripts/check.sh` (pub get, codegen, analyze, test). Analyze
   must report 0 issues.
 - **Public repo:** never commit `.env`, keys, `assets/seed/seed.json` or

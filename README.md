@@ -38,6 +38,10 @@ background worker mirrors it to Supabase.
   last-write-wins, like sync. A lost passphrase can't be recovered. The format
   is written for a future browser version using WebCrypto only:
   [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md), code in `lib/vault/`.
+- **Web.** The same UI runs in Safari, Firefox and Chrome as static files:
+  open your `.lmvault`, type the passphrase, edit, Sync. Decryption happens
+  in the browser and nothing is stored on a server or in the browser. Build,
+  hosting, threat model and guardrails: [docs/WEB.md](docs/WEB.md).
 - **Where data lives on iOS.** The Isar DB is in Library/Application Support
   (excluded from backups; moved there from Documents on first V2 launch).
   Documents, which Files shows, holds only the encrypted vault.

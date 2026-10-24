@@ -95,19 +95,24 @@ class _WebAppState extends State<WebApp> {
     _policy = null;
     String? saved;
     if (reason != LockReason.manual && vault.dirty.value) {
+      final s = vault.source;
       try {
-        final s = vault.source;
         if (s is HandleSource && await s.hasWritePermission()) {
           await vault.sync();
           saved = 'Your changes were saved to ${s.name}.';
-        } else {
+        }
+      } catch (_) {
+        // e.g. the file changed and can't be merged: fall back to a download.
+      }
+      if (saved == null) {
+        try {
           download(await vault.encrypt(), vaultFileName);
           saved =
               'Your unsynced changes were downloaded as $vaultFileName '
               '(encrypted).';
+        } catch (_) {
+          saved = "Your unsynced changes couldn't be saved.";
         }
-      } catch (_) {
-        saved = "Your unsynced changes couldn't be saved.";
       }
     }
     final why = switch (reason) {
