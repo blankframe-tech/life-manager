@@ -36,6 +36,10 @@ dependencies:
   crypto: ^3.0.6
   cryptography: ^2.9.0
   unorm_dart: ^0.3.3
+  # Web build only: the in-memory preferences store (nothing in localStorage)
+  # and browser APIs for the vault file. See docs/WEB.md.
+  shared_preferences_platform_interface: ^2.4.1
+  web: ^1.1.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

@@ -54,6 +54,10 @@ final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError(),
 );
 
+/// Settings → Data & Vault rows on the web (sync, lock, the open file). Null
+/// on iOS / Android, which show export, import, the vault and reset instead.
+final platformDataTilesProvider = Provider<List<Widget>?>((ref) => null);
+
 /// The offline-first sync engine.
 final syncServiceProvider = Provider<SyncService>((ref) {
   final svc = SyncService(ref.watch(storeProvider));

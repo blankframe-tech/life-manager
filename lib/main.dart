@@ -25,13 +25,20 @@ Future<void> main() async {
 }
 
 class LifeManagerApp extends ConsumerWidget {
-  const LifeManagerApp({super.key, required this.home, this.builder});
+  const LifeManagerApp({
+    super.key,
+    required this.home,
+    this.builder,
+    this.navigatorKey,
+  });
 
   /// The first screen: the native gates, or the web shell.
   final Widget home;
 
   /// Wraps every route (the web build adds its lock / sync bar here).
   final TransitionBuilder? builder;
+
+  final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,6 +49,7 @@ class LifeManagerApp extends ConsumerWidget {
       theme: buildTheme(),
       darkTheme: buildTheme(brightness: Brightness.dark),
       themeMode: themeMode,
+      navigatorKey: navigatorKey,
       builder: builder,
       home: home,
     );

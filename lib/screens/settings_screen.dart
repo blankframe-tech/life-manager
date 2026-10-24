@@ -63,7 +63,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     Text('Life Manager', style: context.text.headlineSmall),
                     Text(
-                      'Your data stays on this device.',
+                      kIsWeb
+                          ? 'Nothing is stored in this browser.'
+                          : 'Your data stays on this device.',
                       style: context.text.bodySmall,
                     ),
                   ],
@@ -124,11 +126,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             groupHeader(context, 'Storage'),
             cardGroup(context, [
               const ListTile(
-                leading: Icon(CupertinoIcons.device_phone_portrait),
-                title: Text('On this device only'),
+                leading: Icon(
+                  kIsWeb
+                      ? CupertinoIcons.lock_shield
+                      : CupertinoIcons.device_phone_portrait,
+                ),
+                title: Text(kIsWeb ? 'In this tab only' : 'On this device only'),
                 subtitle: Text(
-                  'Nothing leaves your phone. Set up the encrypted '
-                  'vault in Data & Vault below.',
+                  kIsWeb
+                      ? 'Your data never leaves this browser except as the '
+                            'encrypted file you save.'
+                      : 'Nothing leaves your phone. Set up the encrypted '
+                            'vault in Data & Vault below.',
                 ),
               ),
             ]),
@@ -203,7 +212,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ]),
           ],
           groupHeader(context, 'Data & Vault'),
-          cardGroup(context, [
+          cardGroup(context, ref.watch(platformDataTilesProvider) ?? [
             ListTile(
               leading: const Icon(CupertinoIcons.square_arrow_up),
               title: const Text('Export data'),
@@ -240,8 +249,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: _busy ? null : _deleteAllData,
             ),
           ]),
-          groupHeader(context, 'Security'),
-          cardGroup(context, [_appLockTile(context)]),
+          // The web locks from its top bar; there is no device passcode.
+          if (!kIsWeb) ...[
+            groupHeader(context, 'Security'),
+            cardGroup(context, [_appLockTile(context)]),
+          ],
           groupHeader(context, 'Activity'),
           cardGroup(context, [
             ListTile(
