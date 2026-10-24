@@ -17,6 +17,21 @@ UI never waits on the network); a background worker syncs to the cloud when
 online. Open the app on a second device signed into the same backend and edits
 appear live.
 
+## V2 (branch `V2`)
+
+- **Modules.** Every feature lives in `lib/modules/<name>/` behind one
+  `LifeModule` contract, and `lib/app_modules.dart` lists the enabled modules
+  in order, plus the bottom-nav slots. Remove, add or reorder features there:
+  see [docs/MODULES.md](docs/MODULES.md). V2 adds a **Notes** module, and
+  Buy and Dreams are separate modules again (both are config entries).
+- **Local by default.** `kCloudSyncEnabled = false` in `lib/app_modules.dart`
+  turns off Supabase sign-in and sync, even when keys are passed. The sync
+  code below is unchanged; flip the flag to use it.
+- **Design.** Warm cream and forest green, light and dark palettes, bundled
+  DM Sans + Newsreader fonts (SIL OFL, in `assets/fonts/`). Home has a
+  greeting, quick tiles and module cards, and each module has an intro page.
+- **Check:** `scripts/check.sh`.
+
 ## Architecture
 
 ```
