@@ -1,0 +1,12 @@
+{
+  "description": "ASCII passphrase, short plaintext",
+  "note": "iterations is 1000 ONLY so the vectors run fast. Real vaults use 600000.",
+  "passphrase": "correct horse battery staple",
+  "iterations": 1000,
+  "salt": "AAECAwQFBgcICQoLDA0ODw==",
+  "nonce": "oKGio6Slpqeoqaqr",
+  "headerJson": "{\"version\":1,\"kdf\":\"PBKDF2-HMAC-SHA256\",\"iterations\":1000,\"salt\":\"AAECAwQFBgcICQoLDA0ODw==\",\"cipher\":\"AES-256-GCM\",\"nonce\":\"oKGio6Slpqeoqaqr\",\"createdAt\":\"2026-10-24T00:00:00.000Z\",\"updatedAt\":\"2026-10-24T01:00:00.000Z\",\"deviceId\":\"test-vector-device\"}",
+  "plaintext": "hello vault",
+  "derivedKey": "ppsXnjrdPB4KryJ6DrOqKqhkWrhv7PbKAMF1Eml8cZ4=",
+  "file": "TE1WMQAAAPx7InZlcnNpb24iOjEsImtkZiI6IlBCS0RGMi1ITUFDLVNIQTI1NiIsIml0ZXJhdGlvbnMiOjEwMDAsInNhbHQiOiJBQUVDQXdRRkJnY0lDUW9MREEwT0R3PT0iLCJjaXBoZXIiOiJBRVMtMjU2LUdDTSIsIm5vbmNlIjoib0tHaW82U2xwcWVvcWFxciIsImNyZWF0ZWRBdCI6IjIwMjYtMTAtMjRUMDA6MDA6MDAuMDAwWiIsInVwZGF0ZWRBdCI6IjIwMjYtMTAtMjRUMDE6MDA6MDAuMDAwWiIsImRldmljZUlkIjoidGVzdC12ZWN0b3ItZGV2aWNlIn2+ud++Ijt11GXTxffq83wF+BSC20TorwbOMfE="
+}

@@ -34,6 +34,7 @@ dependencies:
   file_selector: ^1.1.0
   # SHA-256 for the Google Sign-In nonce — see auth_service.dart.
   crypto: ^3.0.6
+  cryptography: ^2.9.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
