@@ -103,9 +103,10 @@ final class VaultOpenIn: NSObject, FlutterPlugin, FlutterSceneLifeCycleDelegate 
   private func copyToTemp(_ url: URL) -> String? {
     let scoped = url.startAccessingSecurityScopedResource()
     defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+    // A fresh folder per open keeps the original name for the sheet.
     let dir = FileManager.default.temporaryDirectory
-      .appendingPathComponent("opened-vaults", isDirectory: true)
-    let dest = dir.appendingPathComponent(UUID().uuidString + ".lmvault")
+      .appendingPathComponent("opened-vaults/\(UUID().uuidString)", isDirectory: true)
+    let dest = dir.appendingPathComponent(url.lastPathComponent)
     do {
       try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
       // Coordinated read: the file may still be downloading from iCloud.
