@@ -3,12 +3,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/item.dart';
-import '../providers/providers.dart';
-import '../theme/app_theme.dart';
-import '../util/format.dart';
-import '../widgets/common.dart';
-import '../widgets/item_editor.dart';
+import '../../models/item.dart';
+import '../../providers/providers.dart';
+import '../../theme/app_theme.dart';
+import '../../util/format.dart';
+import '../../widgets/common.dart';
+import '../../widgets/item_editor.dart';
 
 /// Dena Paona ledger — who owes whom.
 class DealingsScreen extends ConsumerWidget {
@@ -19,21 +19,21 @@ class DealingsScreen extends ConsumerWidget {
     final async = ref.watch(itemsProvider(ItemKind.deal));
     final query = ref.watch(searchQueryProvider(ItemKind.deal));
     return async.when(
-      loading: () => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-        children: const [LoadingSkeleton()],
+      loading: instantLoading,
+      error: (e, _) => errorState(
+        context,
+        () => ref.invalidate(itemsProvider(ItemKind.deal)),
       ),
-      error: (e, _) =>
-          errorState(context, () => ref.invalidate(itemsProvider(ItemKind.deal))),
       data: (all) {
         final items = filterBySearch(all, query);
         if (items.isEmpty) {
           return emptyState(
             CupertinoIcons.arrow_right_arrow_left,
-            'No dealings',
-            'Track money you owe and money owed to you.',
+            'Clear accounts, clear mind',
+            'Track money you owe and money owed to you — Dena Paona, sorted.',
             onAction: () => showItemEditor(context, ref, ItemKind.deal),
             actionLabel: 'Add a dealing',
+            accent: Accents.sage,
           );
         }
         final iOwe = items
@@ -72,10 +72,14 @@ class DealingsScreen extends ConsumerWidget {
   double _sum(List<Item> l) => l.fold(0.0, (s, i) => s + (i.amount ?? 0));
 
   Widget _balanceCard(
-      BuildContext context, List<Item> items, double owe, double owed) {
+    BuildContext context,
+    List<Item> items,
+    double owe,
+    double owed,
+  ) {
     final net = owed - owe;
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(22),
       onTap: () => _showWaterfall(context, items),
       child: Container(
         margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
@@ -85,9 +89,9 @@ class DealingsScreen extends ConsumerWidget {
           children: [
             Row(
               children: [
-                _stat('I owe', owe, AppColors.rose),
+                _stat('I owe', owe, context.colors.negative),
                 Container(width: 1, height: 40, color: context.colors.hair),
-                _stat('Owed to me', owed, AppColors.teal),
+                _stat('Owed to me', owed, context.colors.positive),
               ],
             ),
             const SizedBox(height: 14),
@@ -95,8 +99,11 @@ class DealingsScreen extends ConsumerWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: (net >= 0 ? AppColors.teal : AppColors.rose)
-                    .withValues(alpha: 0.10),
+                color:
+                    (net >= 0
+                            ? context.colors.positive
+                            : context.colors.negative)
+                        .withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -106,13 +113,17 @@ class DealingsScreen extends ConsumerWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: net >= 0 ? AppColors.teal : AppColors.rose,
+                  color: net >= 0
+                      ? context.colors.positive
+                      : context.colors.negative,
                 ),
               ),
             ),
             const SizedBox(height: 8),
-            Text('Tap for breakdown',
-                style: TextStyle(fontSize: 12, color: context.colors.inkSub)),
+            Text(
+              'Tap for breakdown',
+              style: TextStyle(fontSize: 12, color: context.colors.inkSub),
+            ),
           ],
         ),
       ),
@@ -121,18 +132,23 @@ class DealingsScreen extends ConsumerWidget {
 
   Widget _stat(String label, double v, Color c) {
     return Expanded(
-      child: Builder(builder: (context) {
-        return Column(
-          children: [
-            Text(label,
-                style: TextStyle(color: context.colors.inkSub, fontSize: 13)),
-            const SizedBox(height: 4),
-            Text(money(v),
-                style: TextStyle(
-                    fontSize: 22, fontWeight: FontWeight.w800, color: c)),
-          ],
-        );
-      }),
+      child: Builder(
+        builder: (context) {
+          return Column(
+            children: [
+              Text(
+                label,
+                style: TextStyle(color: context.colors.inkSub, fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                money(v),
+                style: context.text.headlineSmall!.copyWith(color: c),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -149,7 +165,7 @@ class DealingsScreen extends ConsumerWidget {
     final owe = item.direction == DealDirection.iOweThem;
     final color = item.direction == null
         ? context.colors.inkSub
-        : (owe ? AppColors.rose : AppColors.teal);
+        : (owe ? context.colors.negative : context.colors.positive);
     return DeletableRow(
       item: item,
       semanticLabel:
@@ -168,14 +184,21 @@ class DealingsScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.title,
-                          style:
-                              const TextStyle(fontSize: 15, height: 1.3)),
+                      Text(
+                        item.title,
+                        style: context.text.titleSmall!.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       if (item.note.isNotEmpty) ...[
                         const SizedBox(height: 3),
-                        Text(item.note,
-                            style: TextStyle(
-                                fontSize: 13, color: context.colors.inkSub)),
+                        Text(
+                          item.note,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: context.colors.inkSub,
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -185,10 +208,11 @@ class DealingsScreen extends ConsumerWidget {
                   Text(
                     '${owe ? '−' : '+'}${moneyK(item.amount)}',
                     style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
-                        color: color,
-                        fontFeatures: const [FontFeature.tabularFigures()]),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: color,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ],
               ],
@@ -200,8 +224,9 @@ class DealingsScreen extends ConsumerWidget {
   }
 
   void _showWaterfall(BuildContext context, List<Item> items) {
-    final withAmount =
-        items.where((i) => i.amount != null && i.direction != null).toList();
+    final withAmount = items
+        .where((i) => i.amount != null && i.direction != null)
+        .toList();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -229,25 +254,37 @@ class _WaterfallSheet extends StatelessWidget {
           : (item.amount ?? 0);
       final from = running;
       running += signed;
-      bars.add(BarChartGroupData(x: i, barRods: [
-        BarChartRodData(
-          fromY: signed >= 0 ? from : running,
-          toY: signed >= 0 ? running : from,
-          color: signed >= 0 ? AppColors.teal : AppColors.rose,
-          width: 14,
-          borderRadius: BorderRadius.circular(3),
+      bars.add(
+        BarChartGroupData(
+          x: i,
+          barRods: [
+            BarChartRodData(
+              fromY: signed >= 0 ? from : running,
+              toY: signed >= 0 ? running : from,
+              color: signed >= 0
+                  ? context.colors.positive
+                  : context.colors.negative,
+              width: 14,
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ],
         ),
-      ]));
+      );
     }
-    bars.add(BarChartGroupData(x: items.length, barRods: [
-      BarChartRodData(
-        fromY: 0,
-        toY: running,
-        color: AppColors.indigo,
-        width: 14,
-        borderRadius: BorderRadius.circular(3),
+    bars.add(
+      BarChartGroupData(
+        x: items.length,
+        barRods: [
+          BarChartRodData(
+            fromY: 0,
+            toY: running,
+            color: context.colors.primary,
+            width: 14,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ],
       ),
-    ]));
+    );
 
     return SafeArea(
       child: Padding(
@@ -256,9 +293,14 @@ class _WaterfallSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Net position breakdown',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: c.ink)),
+            Text(
+              'Net position breakdown',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: c.ink,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               'Each bar is one dealing; the last (indigo) bar is the running net.',
@@ -269,24 +311,33 @@ class _WaterfallSheet extends StatelessWidget {
               height: 220,
               child: items.isEmpty
                   ? Center(
-                      child: Text('No amounts to chart',
-                          style: TextStyle(color: c.inkSub)))
-                  : BarChart(BarChartData(
-                      barGroups: bars,
-                      gridData: const FlGridData(show: false),
-                      borderData: FlBorderData(show: false),
-                      titlesData: const FlTitlesData(
-                        show: true,
-                        leftTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false)),
-                        topTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false)),
-                        rightTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false)),
-                        bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(showTitles: false)),
+                      child: Text(
+                        'No amounts to chart',
+                        style: TextStyle(color: c.inkSub),
                       ),
-                    )),
+                    )
+                  : BarChart(
+                      BarChartData(
+                        barGroups: bars,
+                        gridData: const FlGridData(show: false),
+                        borderData: FlBorderData(show: false),
+                        titlesData: const FlTitlesData(
+                          show: true,
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          topTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                        ),
+                      ),
+                    ),
             ),
             const SizedBox(height: 8),
             // Accessible fallback — the chart is supplementary, this list is
@@ -302,12 +353,20 @@ class _WaterfallSheet extends StatelessWidget {
                           : CupertinoIcons.arrow_up,
                       size: 12,
                       color: items[i].direction == DealDirection.iOweThem
-                          ? AppColors.rose
-                          : AppColors.teal,
+                          ? context.colors.negative
+                          : context.colors.positive,
                     ),
                     const SizedBox(width: 6),
-                    Expanded(child: Text(items[i].title, style: const TextStyle(fontSize: 13))),
-                    Text(money(items[i].amount), style: const TextStyle(fontSize: 13)),
+                    Expanded(
+                      child: Text(
+                        items[i].title,
+                        style: TextStyle(fontSize: 13),
+                      ),
+                    ),
+                    Text(
+                      money(items[i].amount),
+                      style: TextStyle(fontSize: 13),
+                    ),
                   ],
                 ),
               ),

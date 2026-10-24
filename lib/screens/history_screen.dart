@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../models/history_event.dart';
+import '../modules/module.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -16,14 +17,13 @@ class HistoryScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(historyProvider);
+    final config = ref.watch(appConfigProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Activity History')),
       body: async.when(
-        loading: () => ListView(
-          padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-          children: const [LoadingSkeleton()],
-        ),
-        error: (e, _) => errorState(context, () => ref.invalidate(historyProvider)),
+        loading: instantLoading,
+        error: (e, _) =>
+            errorState(context, () => ref.invalidate(historyProvider)),
         data: (events) {
           if (events.isEmpty) {
             return emptyState(
@@ -40,7 +40,7 @@ class HistoryScreen extends ConsumerWidget {
                 groupHeader(context, day),
                 cardGroup(context, [
                   for (var i = 0; i < groups[day]!.length; i++) ...[
-                    _row(context, groups[day]![i]),
+                    _row(context, config, groups[day]![i]),
                     if (i != groups[day]!.length - 1) rowDivider(context),
                   ],
                 ]),
@@ -71,14 +71,20 @@ class HistoryScreen extends ConsumerWidget {
     return DateFormat('d MMMM yyyy').format(dt);
   }
 
-  Widget _row(BuildContext context, HistoryEvent event) {
+  Widget _row(BuildContext context, AppConfig config, HistoryEvent event) {
     final c = context.colors;
-    final section = sectionFor(event.itemKind);
+    // A kind whose module was removed from the config still logs readably.
+    final module = config.moduleForKind(event.itemKind);
     return ListTile(
-      leading: Icon(_icon(event.action), color: section.color),
+      leading: IconTile(
+        icon: _icon(event.action),
+        accent: module?.accent ?? Accents.forest,
+        size: 40,
+      ),
       title: Text('${_verb(event.action)} "${event.title}"'),
       subtitle: Text(
-          '${section.label} · ${DateFormat('h:mm a').format(event.timestamp.toLocal())}'),
+        '${module?.title ?? event.itemKind} · ${DateFormat('h:mm a').format(event.timestamp.toLocal())}',
+      ),
       textColor: c.ink,
     );
   }

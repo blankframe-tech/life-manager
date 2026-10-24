@@ -7,138 +7,124 @@ import '../models/item.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
 
-/// Small uppercase group header, iOS grouped-list style.
+/// Section header above a card.
 Widget groupHeader(BuildContext context, String text, {String? trailing}) {
   final c = context.colors;
+  final style = context.text.labelMedium!.copyWith(
+    color: c.inkSub,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.2,
+  );
   return Padding(
-    padding: const EdgeInsets.fromLTRB(20, 22, 20, 8),
-    child: Row(
-      children: [
-        Expanded(
-          child: Text(
-            text.toUpperCase(),
-            style: TextStyle(
-              color: c.inkSub,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.4,
-            ),
-          ),
-        ),
-        if (trailing != null)
-          Text(
-            trailing,
-            style: TextStyle(
-              color: c.inkSub,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-      ],
+    padding: const EdgeInsets.fromLTRB(22, 22, 22, 8),
+    child: Semantics(
+      header: true,
+      child: Row(
+        children: [
+          Expanded(child: Text(text, style: style)),
+          if (trailing != null) Text(trailing, style: style),
+        ],
+      ),
     ),
   );
 }
 
-/// Centered friendly empty state. Pass [onAction]/[actionLabel] to surface a
-/// CTA — the moment a list is empty is exactly when "add" should be obvious.
+/// A rounded square tile with a pastel background and an icon — the mock's
+/// signature element (module tiles, row leaders, intro features).
+class IconTile extends StatelessWidget {
+  const IconTile({
+    super.key,
+    required this.icon,
+    required this.accent,
+    this.size = 44,
+    this.filled = false,
+  });
+
+  final IconData icon;
+  final ModuleAccent accent;
+  final double size;
+
+  /// Solid primary fill (the "active" quick tile).
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: filled ? c.primary : accent.softOf(context),
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Icon(
+        icon,
+        size: size * 0.48,
+        color: filled ? c.onPrimary : accent.inkOf(context),
+      ),
+    );
+  }
+}
+
+/// Centered, encouraging empty state: a soft circle with the icon, a serif
+/// title, and an optional CTA — the moment a list is empty is exactly when
+/// "add" should be obvious.
 Widget emptyState(
   IconData icon,
   String title,
   String subtitle, {
   VoidCallback? onAction,
   String? actionLabel,
+  ModuleAccent accent = Accents.sage,
 }) {
-  return Builder(builder: (context) {
-    final c = context.colors;
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 54, color: c.hair),
-          const SizedBox(height: 14),
-          Text(title,
-              style: TextStyle(
-                  fontSize: 17, fontWeight: FontWeight.w600, color: c.ink)),
-          const SizedBox(height: 6),
-          Text(subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: c.inkSub)),
-          if (onAction != null && actionLabel != null) ...[
-            const SizedBox(height: 18),
-            FilledButton(onPressed: onAction, child: Text(actionLabel)),
-          ],
-        ],
-      ),
-    );
-  });
-}
-
-/// Shimmer-free pulsing placeholder shaped like a [cardGroup] of rows —
-/// shown only on first load (Isar reads after that are effectively instant).
-class LoadingSkeleton extends StatefulWidget {
-  const LoadingSkeleton({super.key, this.rows = 3});
-  final int rows;
-
-  @override
-  State<LoadingSkeleton> createState() => _LoadingSkeletonState();
-}
-
-class _LoadingSkeletonState extends State<LoadingSkeleton>
-    with SingleTickerProviderStateMixin {
-  late final _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 900),
-  );
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (MediaQuery.of(context).disableAnimations) {
-      _c.value = 0.75; // static, still-visible placeholder — no pulsing
-    } else if (!_c.isAnimating) {
-      _c.repeat(reverse: true);
-    }
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final base = context.colors.hair;
-    return FadeTransition(
-      opacity: _c.drive(Tween(begin: 0.5, end: 1)),
-      child: cardGroup(context, [
-        for (var i = 0; i < widget.rows; i++) ...[
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    height: 14,
-                    decoration: BoxDecoration(
-                        color: base, borderRadius: BorderRadius.circular(4)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Container(
-                  width: 48,
-                  height: 14,
+  return Builder(
+    builder: (context) {
+      final c = context.colors;
+      return Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ExcludeSemantics(
+                child: Container(
+                  width: 96,
+                  height: 96,
                   decoration: BoxDecoration(
-                      color: base, borderRadius: BorderRadius.circular(4)),
+                    color: accent.softOf(context),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, size: 40, color: accent.inkOf(context)),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: context.text.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                style: context.text.bodyMedium!.copyWith(color: c.inkSub),
+              ),
+              if (onAction != null && actionLabel != null) ...[
+                const SizedBox(height: 22),
+                FilledButton.icon(
+                  onPressed: onAction,
+                  icon: const Icon(CupertinoIcons.add, size: 18),
+                  label: Text(actionLabel),
                 ),
               ],
-            ),
+            ],
           ),
-          if (i != widget.rows - 1) rowDivider(context),
-        ],
-      ]),
-    );
-  }
+        ),
+      );
+    },
+  );
 }
 
 /// Human error state with a retry action — never show a raw exception string.
@@ -148,20 +134,28 @@ Widget errorState(BuildContext context, VoidCallback onRetry) {
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(CupertinoIcons.exclamationmark_triangle, size: 44, color: c.inkSub),
+        Icon(
+          CupertinoIcons.exclamationmark_triangle,
+          size: 44,
+          color: c.inkSub,
+        ),
         const SizedBox(height: 14),
-        Text('Something went wrong',
-            style:
-                TextStyle(fontSize: 17, fontWeight: FontWeight.w600, color: c.ink)),
+        Text('Something went wrong', style: context.text.titleMedium),
         const SizedBox(height: 6),
-        Text('Pull to retry, or tap below.',
-            style: TextStyle(fontSize: 14, color: c.inkSub)),
+        Text(
+          'Your data is safe. Try again.',
+          style: context.text.bodyMedium!.copyWith(color: c.inkSub),
+        ),
         const SizedBox(height: 14),
         FilledButton.tonal(onPressed: onRetry, child: const Text('Retry')),
       ],
     ),
   );
 }
+
+/// Data is local (Isar), so the first frame is effectively instant — the
+/// loading branch renders nothing rather than flashing a skeleton.
+Widget instantLoading() => const SizedBox.shrink();
 
 /// Wraps a row with swipe-to-delete (soft delete via the sync engine), with
 /// an Undo affordance since the swipe itself is irreversible-feeling.
@@ -178,17 +172,15 @@ class DeletableRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final c = context.colors;
     return Dismissible(
       key: ValueKey(item.uuid),
       direction: DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 22),
-        decoration: BoxDecoration(
-          color: AppColors.rose,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: const Icon(CupertinoIcons.delete, color: Colors.white),
+        padding: const EdgeInsets.only(right: 24),
+        color: c.negative,
+        child: Icon(CupertinoIcons.delete, color: c.bg),
       ),
       onDismissed: (_) {
         HapticFeedback.mediumImpact();
@@ -209,23 +201,200 @@ class DeletableRow extends ConsumerWidget {
           ),
         );
       },
-      child: Semantics(label: semanticLabel, container: true, child: child),
+      child: Semantics(
+        label: semanticLabel,
+        hint: 'Swipe left to delete',
+        container: true,
+        child: child,
+      ),
+    );
+  }
+}
+
+/// A 44pt circular check toggle with haptics and an animated fill.
+class CheckCircle extends StatelessWidget {
+  const CheckCircle({
+    super.key,
+    required this.done,
+    required this.onChanged,
+    required this.label,
+    this.color,
+  });
+
+  final bool done;
+  final ValueChanged<bool> onChanged;
+
+  /// What toggling does, for VoiceOver ("Mark Rent as paid").
+  final String label;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final fill = color ?? c.primary;
+    void toggle() {
+      HapticFeedback.selectionClick();
+      onChanged(!done);
+    }
+
+    // Own node with its own tap action, so it isn't merged into the row.
+    return Semantics(
+      container: true,
+      label: label,
+      checked: done,
+      button: true,
+      onTap: toggle,
+      excludeSemantics: true,
+      child: InkResponse(
+        radius: 24,
+        onTap: toggle,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: done ? fill : Colors.transparent,
+                border: Border.all(color: done ? fill : c.inkSub, width: 1.6),
+              ),
+              child: done
+                  ? Icon(CupertinoIcons.checkmark, size: 14, color: c.bg)
+                  : null,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A card with a title row and optional "View all" action — the home and
+/// budget building block.
+class SectionCard extends StatelessWidget {
+  const SectionCard({
+    super.key,
+    required this.title,
+    required this.child,
+    this.trailing,
+    this.onViewAll,
+    this.childPadding = const EdgeInsets.fromLTRB(18, 0, 18, 16),
+  });
+
+  final String title;
+  final Widget child;
+  final Widget? trailing;
+  final VoidCallback? onViewAll;
+
+  /// Padding around [child]; rows that bring their own insets pass less.
+  final EdgeInsets childPadding;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: cardDecoration(context),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 8, 8, 0),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 44),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Semantics(
+                      header: true,
+                      child: Text(title, style: context.text.titleMedium),
+                    ),
+                  ),
+                  ?trailing,
+                  if (onViewAll != null)
+                    TextButton(
+                      onPressed: onViewAll,
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                      ),
+                      child: Semantics(
+                        label: 'View all $title',
+                        excludeSemantics: true,
+                        child: const Text('View all'),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          Padding(padding: childPadding, child: child),
+        ],
+      ),
     );
   }
 }
 
 /// A rounded card wrapper for a group of rows.
 Widget cardGroup(BuildContext context, List<Widget> children) {
+  final c = context.colors;
+  // Material (not a coloured DecoratedBox) so ListTile ink shows through.
   return Container(
     margin: const EdgeInsets.symmetric(horizontal: 16),
-    decoration: cardDecoration(context),
-    clipBehavior: Clip.antiAlias,
-    child: Column(children: children),
+    decoration: BoxDecoration(
+      borderRadius: BorderRadius.circular(22),
+      boxShadow: cardDecoration(context).boxShadow,
+    ),
+    child: Material(
+      color: c.card,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(22),
+        side: BorderSide(color: c.hair),
+      ),
+      child: Column(children: children),
+    ),
   );
 }
 
 /// A thin inset separator between rows in a card group.
 Widget rowDivider(BuildContext context) => Padding(
-      padding: const EdgeInsets.only(left: 16),
-      child: Divider(height: 1, thickness: 0.5, color: context.colors.hair),
+  padding: const EdgeInsets.only(left: 16),
+  child: Divider(height: 1, thickness: 1, color: context.colors.hair),
+);
+
+/// Rounded progress bar; clamps to [0, 1].
+class SoftBar extends StatelessWidget {
+  const SoftBar({
+    super.key,
+    required this.value,
+    required this.color,
+    this.track,
+  });
+  final double value;
+  final Color color;
+  final Color? track;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: value.isNaN ? 0 : value.clamp(0.0, 1.0)),
+        duration: MediaQuery.of(context).disableAnimations
+            ? Duration.zero
+            : const Duration(milliseconds: 600),
+        curve: Curves.easeOutCubic,
+        builder: (context, v, _) => LinearProgressIndicator(
+          value: v,
+          minHeight: 6,
+          color: color,
+          backgroundColor: track ?? context.colors.hair,
+        ),
+      ),
     );
+  }
+}

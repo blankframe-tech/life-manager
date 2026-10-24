@@ -12,8 +12,10 @@ class ItemKind {
   static const task = 'task'; // to-dos
   static const buy = 'buy'; // shopping lists
   static const dream = 'dream'; // long-term wishes
+  static const note = 'note'; // free-form notes (title + body)
 
-  static const all = [txn, deal, budget, task, buy, dream];
+  // Modules may add their own kinds (see lib/app_modules.dart); `kind` is
+  // free text end to end, so a new kind needs no migration.
 }
 
 /// Direction of an [ItemKind.txn] entry — money out or money in. Shares the
@@ -105,20 +107,20 @@ class Item {
 
   /// Serialise for Supabase (snake_case columns).
   Map<String, dynamic> toMap() => {
-        'uuid': uuid,
-        'kind': kind,
-        'title': title,
-        'note': note,
-        'amount': amount,
-        'direction': direction,
-        'category': category,
-        'section': section,
-        'done': done,
-        'due_date': dueDate?.toUtc().toIso8601String(),
-        'sort_order': sortOrder,
-        'updated_at': updatedAt.toUtc().toIso8601String(),
-        'is_deleted': isDeleted,
-      };
+    'uuid': uuid,
+    'kind': kind,
+    'title': title,
+    'note': note,
+    'amount': amount,
+    'direction': direction,
+    'category': category,
+    'section': section,
+    'done': done,
+    'due_date': dueDate?.toUtc().toIso8601String(),
+    'sort_order': sortOrder,
+    'updated_at': updatedAt.toUtc().toIso8601String(),
+    'is_deleted': isDeleted,
+  };
 
   /// Build from a Supabase row.
   static Item fromMap(Map<String, dynamic> m) {

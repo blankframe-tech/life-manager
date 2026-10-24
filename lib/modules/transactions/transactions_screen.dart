@@ -4,13 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import '../models/item.dart';
-import '../providers/providers.dart';
-import '../theme/app_theme.dart';
-import '../util/format.dart';
-import '../util/week.dart';
-import '../widgets/common.dart';
-import '../widgets/item_editor.dart';
+import '../../models/item.dart';
+import '../../providers/providers.dart';
+import '../../theme/app_theme.dart';
+import '../../util/format.dart';
+import '../../util/week.dart';
+import '../../widgets/common.dart';
+import '../../widgets/item_editor.dart';
 
 final _rowDate = DateFormat('EEE, d MMM');
 
@@ -30,20 +30,20 @@ class TransactionsScreen extends ConsumerWidget {
     final async = ref.watch(itemsProvider(ItemKind.txn));
     final query = ref.watch(searchQueryProvider(ItemKind.txn));
     return async.when(
-      loading: () => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 96),
-        children: const [LoadingSkeleton()],
+      loading: instantLoading,
+      error: (e, _) => errorState(
+        context,
+        () => ref.invalidate(itemsProvider(ItemKind.txn)),
       ),
-      error: (e, _) =>
-          errorState(context, () => ref.invalidate(itemsProvider(ItemKind.txn))),
       data: (all) {
         if (all.isEmpty) {
           return emptyState(
             CupertinoIcons.creditcard,
-            'No transactions',
-            'Log what you spend and earn, and see it add up by week.',
+            'Every taka has a story',
+            'Log what you spend and earn, and watch it add up week by week.',
             onAction: () => showItemEditor(context, ref, ItemKind.txn),
             actionLabel: 'Add a transaction',
+            accent: Accents.sky,
           );
         }
         final items = _search(all, query);
@@ -57,8 +57,10 @@ class TransactionsScreen extends ConsumerWidget {
 
         final weeks = rollupByWeek(items);
         final thisWeekStart = startOfWeek(DateTime.now());
-        final current = weeks.firstWhere((w) => w.start == thisWeekStart,
-            orElse: () => WeekRollup.empty(thisWeekStart));
+        final current = weeks.firstWhere(
+          (w) => w.start == thisWeekStart,
+          orElse: () => WeekRollup.empty(thisWeekStart),
+        );
 
         return ListView(
           physics: const BouncingScrollPhysics(),
@@ -78,19 +80,24 @@ class TransactionsScreen extends ConsumerWidget {
     final q = query.trim().toLowerCase();
     if (q.isEmpty) return items;
     return items
-        .where((i) =>
-            i.title.toLowerCase().contains(q) ||
-            i.note.toLowerCase().contains(q) ||
-            (i.category ?? '').toLowerCase().contains(q))
+        .where(
+          (i) =>
+              i.title.toLowerCase().contains(q) ||
+              i.note.toLowerCase().contains(q) ||
+              (i.category ?? '').toLowerCase().contains(q),
+        )
         .toList();
   }
 
   Widget _summaryCard(
-      BuildContext context, WeekRollup week, List<WeekRollup> weeks) {
+    BuildContext context,
+    WeekRollup week,
+    List<WeekRollup> weeks,
+  ) {
     final c = context.colors;
     final net = week.net;
     return InkWell(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(22),
       onTap: () => showModalBottomSheet(
         context: context,
         isScrollControlled: true,
@@ -106,23 +113,28 @@ class TransactionsScreen extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text('This week',
-                      style: TextStyle(
-                          color: c.inkSub,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.3)),
+                  child: Text(
+                    'This week',
+                    style: TextStyle(
+                      color: c.inkSub,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
                 ),
-                Text(weekRangeLabel(week.start),
-                    style: TextStyle(color: c.inkSub, fontSize: 12)),
+                Text(
+                  weekRangeLabel(week.start),
+                  style: TextStyle(color: c.inkSub, fontSize: 12),
+                ),
               ],
             ),
             const SizedBox(height: 12),
             Row(
               children: [
-                _stat(context, 'Earned', week.earned, AppColors.teal),
+                _stat(context, 'Earned', week.earned, context.colors.positive),
                 Container(width: 1, height: 40, color: c.hair),
-                _stat(context, 'Spent', week.spent, AppColors.rose),
+                _stat(context, 'Spent', week.spent, context.colors.negative),
               ],
             ),
             const SizedBox(height: 14),
@@ -130,8 +142,11 @@ class TransactionsScreen extends ConsumerWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color: (net >= 0 ? AppColors.teal : AppColors.rose)
-                    .withValues(alpha: 0.10),
+                color:
+                    (net >= 0
+                            ? context.colors.positive
+                            : context.colors.negative)
+                        .withValues(alpha: 0.10),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
@@ -141,7 +156,9 @@ class TransactionsScreen extends ConsumerWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  color: net >= 0 ? AppColors.teal : AppColors.rose,
+                  color: net >= 0
+                      ? context.colors.positive
+                      : context.colors.negative,
                 ),
               ),
             ),
@@ -150,8 +167,10 @@ class TransactionsScreen extends ConsumerWidget {
               categoryBar(context, week.spendByCategory),
             ],
             const SizedBox(height: 10),
-            Text('Tap for the last $_kTrendWeeks weeks',
-                style: TextStyle(fontSize: 12, color: c.inkSub)),
+            Text(
+              'Tap for the last $_kTrendWeeks weeks',
+              style: TextStyle(fontSize: 12, color: c.inkSub),
+            ),
           ],
         ),
       ),
@@ -162,23 +181,32 @@ class TransactionsScreen extends ConsumerWidget {
     return Expanded(
       child: Column(
         children: [
-          Text(label,
-              style: TextStyle(color: context.colors.inkSub, fontSize: 13)),
+          Text(
+            label,
+            style: TextStyle(color: context.colors.inkSub, fontSize: 13),
+          ),
           const SizedBox(height: 4),
-          Text(money(value),
-              style: TextStyle(
-                  fontSize: 22, fontWeight: FontWeight.w800, color: color)),
+          Text(
+            money(value),
+            style: context.text.headlineSmall!.copyWith(color: color),
+          ),
         ],
       ),
     );
   }
 
   List<Widget> _weekBlock(
-      BuildContext context, WidgetRef ref, WeekRollup week) {
+    BuildContext context,
+    WidgetRef ref,
+    WeekRollup week,
+  ) {
     final net = week.net;
     return [
-      groupHeader(context, weekLabel(week.start),
-          trailing: net >= 0 ? '+${money(net)}' : '−${money(net.abs())}'),
+      groupHeader(
+        context,
+        weekLabel(week.start),
+        trailing: net >= 0 ? '+${money(net)}' : '−${money(net.abs())}',
+      ),
       cardGroup(context, [
         _weekTotalsRow(context, week),
         rowDivider(context),
@@ -202,20 +230,28 @@ class TransactionsScreen extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Text('In ${money(week.earned)}',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.teal)),
+              Text(
+                'In ${money(week.earned)}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.positive,
+                ),
+              ),
               Text('  ·  ', style: TextStyle(fontSize: 13, color: c.inkSub)),
-              Text('Out ${money(week.spent)}',
-                  style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.rose)),
+              Text(
+                'Out ${money(week.spent)}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: context.colors.negative,
+                ),
+              ),
               const Spacer(),
-              Text('${week.items.length} entries',
-                  style: TextStyle(fontSize: 12, color: c.inkSub)),
+              Text(
+                '${week.items.length} entries',
+                style: TextStyle(fontSize: 12, color: c.inkSub),
+              ),
             ],
           ),
           if (byCategory.isNotEmpty) ...[
@@ -237,7 +273,8 @@ class TransactionsScreen extends ConsumerWidget {
     ].join(' · ');
     return DeletableRow(
       item: item,
-      semanticLabel: '${item.title}, $category, '
+      semanticLabel:
+          '${item.title}, $category, '
           '${earn ? 'earned' : 'spent'} ${money(item.amount)}, '
           '${_rowDate.format(item.occurredAt)}',
       child: Material(
@@ -248,27 +285,30 @@ class TransactionsScreen extends ConsumerWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 4, right: 10),
-                  child: Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                        color: categoryColor(category),
-                        shape: BoxShape.circle),
-                  ),
+                IconTile(
+                  icon: earn
+                      ? CupertinoIcons.arrow_down_left
+                      : CupertinoIcons.bag,
+                  accent: categoryAccent(category),
+                  size: 40,
                 ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(item.title,
-                          style: const TextStyle(fontSize: 15, height: 1.3)),
+                      Text(
+                        item.title,
+                        style: context.text.titleSmall!.copyWith(
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       const SizedBox(height: 3),
-                      Text('$category · $detail',
-                          style: TextStyle(fontSize: 12, color: c.inkSub)),
+                      Text(
+                        '$category · $detail',
+                        style: TextStyle(fontSize: 12, color: c.inkSub),
+                      ),
                     ],
                   ),
                 ),
@@ -276,10 +316,11 @@ class TransactionsScreen extends ConsumerWidget {
                 Text(
                   '${earn ? '+' : '−'}${money(item.amount)}',
                   style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: earn ? AppColors.teal : c.ink,
-                      fontFeatures: const [FontFeature.tabularFigures()]),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: earn ? context.colors.positive : c.ink,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ],
             ),
@@ -294,8 +335,11 @@ class TransactionsScreen extends ConsumerWidget {
 /// same device the Budget screen uses for its three buckets, generalised to
 /// however many categories exist. Never colour-only: every segment is named
 /// with its share in the legend below.
-Widget categoryBar(BuildContext context, Map<String, double> byCategory,
-    {int max = 5}) {
+Widget categoryBar(
+  BuildContext context,
+  Map<String, double> byCategory, {
+  int max = 5,
+}) {
   final total = byCategory.values.fold(0.0, (a, b) => a + b);
   if (total <= 0) return const SizedBox.shrink();
 
@@ -303,10 +347,9 @@ Widget categoryBar(BuildContext context, Map<String, double> byCategory,
   // the top few collapses into one grey "Other" slice.
   final entries = byCategory.entries.toList();
   final shown = entries.take(max).toList();
-  final otherTotal =
-      entries.skip(max).fold(0.0, (sum, e) => sum + e.value);
+  final otherTotal = entries.skip(max).fold(0.0, (sum, e) => sum + e.value);
   final segments = <(String, double, Color)>[
-    for (final e in shown) (e.key, e.value, categoryColor(e.key)),
+    for (final e in shown) (e.key, e.value, categoryAccent(e.key).chart),
     if (otherTotal > 0) ('Other', otherTotal, context.colors.inkSub),
   ];
 
@@ -338,14 +381,18 @@ Widget categoryBar(BuildContext context, Map<String, double> byCategory,
               mainAxisSize: MainAxisSize.min,
               children: [
                 Container(
-                    width: 8,
-                    height: 8,
-                    decoration:
-                        BoxDecoration(color: color, shape: BoxShape.circle)),
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
                 const SizedBox(width: 5),
-                Text('$label ${(value / total * 100).round()}%',
-                    style: TextStyle(
-                        fontSize: 12, color: context.colors.inkSub)),
+                Text(
+                  '$label ${(value / total * 100).round()}%',
+                  style: TextStyle(fontSize: 12, color: context.colors.inkSub),
+                ),
               ],
             ),
         ],
@@ -367,7 +414,9 @@ class _TrendSheet extends StatelessWidget {
     // Oldest → newest, so the chart reads left to right like a timeline.
     final recent = weeks.take(_kTrendWeeks).toList().reversed.toList();
     final peak = recent.fold(
-        0.0, (m, w) => [m, w.earned, w.spent].reduce((a, b) => a > b ? a : b));
+      0.0,
+      (m, w) => [m, w.earned, w.spent].reduce((a, b) => a > b ? a : b),
+    );
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -376,9 +425,14 @@ class _TrendSheet extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Weekly trend',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: c.ink)),
+            Text(
+              'Weekly trend',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: c.ink,
+              ),
+            ),
             const SizedBox(height: 4),
             Text(
               'Earned (teal) against spent (rose), most recent week on the right.',
@@ -387,56 +441,65 @@ class _TrendSheet extends StatelessWidget {
             const SizedBox(height: 16),
             SizedBox(
               height: 200,
-              child: BarChart(BarChartData(
-                maxY: peak == 0 ? 1 : peak * 1.15,
-                barGroups: [
-                  for (var i = 0; i < recent.length; i++)
-                    BarChartGroupData(x: i, barsSpace: 3, barRods: [
-                      BarChartRodData(
-                        toY: recent[i].earned,
-                        color: AppColors.teal,
-                        width: 9,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                      BarChartRodData(
-                        toY: recent[i].spent,
-                        color: AppColors.rose,
-                        width: 9,
-                        borderRadius: BorderRadius.circular(3),
-                      ),
-                    ]),
-                ],
-                gridData: const FlGridData(show: false),
-                borderData: FlBorderData(show: false),
-                titlesData: FlTitlesData(
-                  show: true,
-                  leftTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false)),
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 28,
-                      getTitlesWidget: (value, meta) {
-                        final i = value.toInt();
-                        if (i < 0 || i >= recent.length) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            DateFormat('d/M').format(recent[i].start),
-                            style: TextStyle(fontSize: 10, color: c.inkSub),
+              child: BarChart(
+                BarChartData(
+                  maxY: peak == 0 ? 1 : peak * 1.15,
+                  barGroups: [
+                    for (var i = 0; i < recent.length; i++)
+                      BarChartGroupData(
+                        x: i,
+                        barsSpace: 3,
+                        barRods: [
+                          BarChartRodData(
+                            toY: recent[i].earned,
+                            color: context.colors.positive,
+                            width: 9,
+                            borderRadius: BorderRadius.circular(3),
                           ),
-                        );
-                      },
+                          BarChartRodData(
+                            toY: recent[i].spent,
+                            color: context.colors.negative,
+                            width: 9,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ],
+                      ),
+                  ],
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  titlesData: FlTitlesData(
+                    show: true,
+                    leftTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 28,
+                        getTitlesWidget: (value, meta) {
+                          final i = value.toInt();
+                          if (i < 0 || i >= recent.length) {
+                            return const SizedBox.shrink();
+                          }
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              DateFormat('d/M').format(recent[i].start),
+                              style: TextStyle(fontSize: 10, color: c.inkSub),
+                            ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
-              )),
+              ),
             ),
             const SizedBox(height: 12),
             // The chart is supplementary; this list is the primary reading.
@@ -446,16 +509,26 @@ class _TrendSheet extends StatelessWidget {
                 child: Row(
                   children: [
                     Expanded(
-                      child: Text(weekLabel(week.start),
-                          style: const TextStyle(fontSize: 13)),
+                      child: Text(
+                        weekLabel(week.start),
+                        style: TextStyle(fontSize: 13),
+                      ),
                     ),
-                    Text('+${money(week.earned)}',
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.teal)),
+                    Text(
+                      '+${money(week.earned)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: context.colors.positive,
+                      ),
+                    ),
                     const SizedBox(width: 10),
-                    Text('−${money(week.spent)}',
-                        style: const TextStyle(
-                            fontSize: 13, color: AppColors.rose)),
+                    Text(
+                      '−${money(week.spent)}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: context.colors.negative,
+                      ),
+                    ),
                     const SizedBox(width: 10),
                     SizedBox(
                       width: 74,
@@ -464,8 +537,10 @@ class _TrendSheet extends StatelessWidget {
                             ? '+${money(week.net)}'
                             : '−${money(week.net.abs())}',
                         textAlign: TextAlign.right,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                     ),
                   ],

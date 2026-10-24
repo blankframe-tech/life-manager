@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:life_manager/models/item.dart';
 import 'package:life_manager/providers/providers.dart';
-import 'package:life_manager/screens/transactions_screen.dart';
+import 'package:life_manager/modules/transactions/transactions_screen.dart';
 import 'package:life_manager/theme/app_theme.dart';
 import 'package:life_manager/widgets/item_editor.dart';
 import 'package:life_manager/services/txn_category_service.dart';
@@ -245,7 +245,7 @@ void main() {
         (tester) async {
       await pump(tester, []);
 
-      expect(find.text('No transactions'), findsOneWidget);
+      expect(find.text('Every taka has a story'), findsOneWidget);
       expect(find.text('Add a transaction'), findsOneWidget);
     });
 
@@ -259,15 +259,15 @@ void main() {
         _txn('Bus', amount: 50, on: lastWeek, category: 'Transport'),
       ]);
 
-      // Summary card: this week's totals, and what's left of them.
-      expect(find.text('This week'), findsOneWidget);
+      // Summary card: this week's totals, and what's left of them. "This
+      // week" twice: the card's label and its week block's header.
+      expect(find.text('This week'), findsNWidgets(2));
       expect(find.text('৳1,000'), findsOneWidget); // earned
       expect(find.text('৳250'), findsOneWidget); // spent
       expect(find.text('Left over: +৳750'), findsOneWidget);
 
       // One block per week, each headed and totalled.
-      expect(find.text('THIS WEEK'), findsOneWidget);
-      expect(find.text('LAST WEEK'), findsOneWidget);
+      expect(find.text('Last week'), findsOneWidget);
       expect(find.text('In ৳1,000'), findsOneWidget);
       expect(find.text('Out ৳250'), findsOneWidget);
 
@@ -300,10 +300,10 @@ void main() {
 
       expect(find.text('Weekly trend'), findsOneWidget);
       // Both weeks listed under the chart, which is the accessible reading of
-      // it — the chart itself is supplementary. "This week" twice: the
-      // summary card behind the sheet still carries its own label.
-      expect(find.text('This week'), findsNWidgets(2));
-      expect(find.text('Last week'), findsOneWidget);
+      // it — the chart itself is supplementary. "This week" three times: the
+      // summary card and week header behind the sheet carry it too.
+      expect(find.text('This week'), findsNWidgets(3));
+      expect(find.text('Last week'), findsNWidgets(2));
     });
 
     testWidgets('search matches the category, not just the title',
@@ -378,9 +378,9 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Lunch');
       // The sheet is taller than the test viewport, so the save button has to
       // be scrolled to before it can be tapped.
-      await tester.ensureVisible(find.text('Add'));
+      await tester.ensureVisible(find.text('Add Transaction'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Add'));
+      await tester.tap(find.text('Add Transaction'));
       await tester.pumpAndSettle();
 
       // Still open, with the reason on screen — nothing was saved, which

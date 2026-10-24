@@ -53,3 +53,23 @@ flutter:
   assets:
     - assets/seed/
     - assets/brand/
+    - assets/fonts/OFL-DMSans.txt
+    - assets/fonts/OFL-Newsreader.txt
+  # Bundled, never fetched at runtime. Both SIL OFL 1.1 — licences above are
+  # registered with LicenseRegistry in main.dart.
+  fonts:
+    - family: DMSans
+      fonts:
+        - asset: assets/fonts/DMSans-400.ttf
+        - asset: assets/fonts/DMSans-500.ttf
+          weight: 500
+        - asset: assets/fonts/DMSans-600.ttf
+          weight: 600
+        - asset: assets/fonts/DMSans-700.ttf
+          weight: 700
+    - family: Newsreader
+      fonts:
+        - asset: assets/fonts/Newsreader-500.ttf
+          weight: 500
+        - asset: assets/fonts/Newsreader-600.ttf
+          weight: 600

@@ -16,8 +16,7 @@ class DeleteEverythingDialog extends StatefulWidget {
   final bool cloud;
 
   @override
-  State<DeleteEverythingDialog> createState() =>
-      _DeleteEverythingDialogState();
+  State<DeleteEverythingDialog> createState() => _DeleteEverythingDialogState();
 }
 
 class _DeleteEverythingDialogState extends State<DeleteEverythingDialog> {
@@ -49,15 +48,17 @@ class _DeleteEverythingDialogState extends State<DeleteEverythingDialog> {
           Text(
             widget.cloud
                 ? 'This erases every item and all activity history — on this '
-                    'device and in the cloud, so it disappears from your other '
-                    'devices too. Your settings are reset and you are signed '
-                    'out.'
+                      'device and in the cloud, so it disappears from your other '
+                      'devices too. Your settings are reset and you are signed '
+                      'out.'
                 : 'This erases every item and all activity history on this '
-                    'device, and resets your settings.',
+                      'device, and resets your settings.',
           ),
           const SizedBox(height: 12),
-          const Text('It cannot be undone. Export your data first if you '
-              'might want it back.'),
+          const Text(
+            'It cannot be undone. Export your data first if you '
+            'might want it back.',
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _controller,
@@ -80,7 +81,10 @@ class _DeleteEverythingDialogState extends State<DeleteEverythingDialog> {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
+          style: FilledButton.styleFrom(
+            backgroundColor: context.colors.negative,
+            foregroundColor: context.colors.bg,
+          ),
           onPressed: _confirmed ? () => Navigator.of(context).pop(true) : null,
           child: const Text('Delete everything'),
         ),

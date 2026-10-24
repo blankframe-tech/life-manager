@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/item.dart';
+import '../modules/module.dart';
 import '../providers/providers.dart';
 import '../services/txn_category_service.dart' show mergeUsedCategories;
 import '../theme/app_theme.dart';
@@ -68,6 +69,12 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
   bool get _isEdit => widget.existing != null;
   bool get _isTxn => widget.kind == ItemKind.txn;
 
+  /// Field config for generic kinds (Tasks, Buy, Notes, custom categories),
+  /// from the module that owns [ItemEditor.kind]. Null for a kind whose module
+  /// has been removed from the config — the editor then shows title + notes.
+  late final ItemSpec? _spec = ref.read(appConfigProvider).specFor(widget.kind);
+  List<ListSection> get _sections => _spec?.sections ?? const [];
+
   @override
   void initState() {
     super.initState();
@@ -75,7 +82,8 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     _title = TextEditingController(text: e?.title ?? '');
     _note = TextEditingController(text: e?.note ?? '');
     _amount = TextEditingController(
-        text: e?.amount == null ? '' : e!.amount!.toStringAsFixed(0));
+      text: e?.amount == null ? '' : e!.amount!.toStringAsFixed(0),
+    );
     _direction = e?.direction ?? _defaultDirection();
     _category = e?.category ?? widget.initialCategory ?? _defaultCategory();
     _section = e?.section ?? widget.initialSection ?? _defaultSection();
@@ -85,10 +93,10 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
   }
 
   String? _defaultDirection() => switch (widget.kind) {
-        ItemKind.deal => DealDirection.iOweThem,
-        ItemKind.txn => TxnDirection.spend,
-        _ => null,
-      };
+    ItemKind.deal => DealDirection.iOweThem,
+    ItemKind.txn => TxnDirection.spend,
+    _ => null,
+  };
 
   String? _defaultCategory() {
     if (widget.kind == ItemKind.budget) return BudgetCategory.needs;
@@ -99,11 +107,7 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     return null;
   }
 
-  String? _defaultSection() {
-    if (widget.kind == ItemKind.task) return 'admin';
-    if (widget.kind == ItemKind.buy) return 'p0';
-    return null;
-  }
+  String? _defaultSection() => _sections.isEmpty ? null : _sections.first.id;
 
   @override
   void dispose() {
@@ -128,14 +132,13 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     item.title = title;
     item.note = _note.text.trim();
     item.amount = amount;
-    item.direction =
-        (widget.kind == ItemKind.deal || _isTxn) ? _direction : null;
-    item.category =
-        (widget.kind == ItemKind.budget || _isTxn) ? _category : null;
-    item.section =
-        (widget.kind == ItemKind.task || widget.kind == ItemKind.buy)
-            ? _section
-            : null;
+    item.direction = (widget.kind == ItemKind.deal || _isTxn)
+        ? _direction
+        : null;
+    item.category = (widget.kind == ItemKind.budget || _isTxn)
+        ? _category
+        : null;
+    item.section = _sections.isNotEmpty ? _section : null;
     item.dueDate = _dueDate;
     await sync.save(item);
     if (mounted) Navigator.pop(context);
@@ -143,15 +146,19 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final section = sectionFor(widget.kind);
     final c = context.colors;
+    final singular = _spec?.singular ?? 'Item';
+    final customKind =
+        _isTxn ||
+        widget.kind == ItemKind.deal ||
+        widget.kind == ItemKind.budget;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: Container(
         decoration: BoxDecoration(
           color: c.bg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
         ),
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
         child: SingleChildScrollView(
@@ -171,35 +178,36 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
                 ),
               ),
               Text(
-                '${_isEdit ? 'Edit' : 'New'} ${section.singular}',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.w700, color: c.ink),
+                '${_isEdit ? 'Edit' : 'New'} $singular',
+                style: context.text.headlineSmall,
               ),
               const SizedBox(height: 14),
               _field(_title, 'Title', autofocus: !_isEdit, maxLines: 2),
               const SizedBox(height: 10),
               if (_isTxn) ...[
                 _segmented(
-                  {
-                    TxnDirection.spend: 'Spent',
-                    TxnDirection.earn: 'Earned',
-                  },
+                  {TxnDirection.spend: 'Spent', TxnDirection.earn: 'Earned'},
                   _direction,
                   (v) => setState(() => _direction = v),
                 ),
                 const SizedBox(height: 12),
                 _categoryPicker(),
                 const SizedBox(height: 12),
-                _field(_amount, 'Amount (৳)',
-                    keyboard: TextInputType.number,
-                    onChanged: _amountMissing
-                        ? (_) => setState(() => _amountMissing = false)
-                        : null),
+                _field(
+                  _amount,
+                  'Amount (৳)',
+                  keyboard: TextInputType.number,
+                  onChanged: _amountMissing
+                      ? (_) => setState(() => _amountMissing = false)
+                      : null,
+                ),
                 if (_amountMissing)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 6, left: 4),
-                    child: Text('Enter an amount above zero.',
-                        style: TextStyle(color: AppColors.rose, fontSize: 12)),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6, left: 4),
+                    child: Text(
+                      'Enter an amount above zero.',
+                      style: TextStyle(color: c.negative, fontSize: 12),
+                    ),
                   ),
                 const SizedBox(height: 10),
                 _dateRow(label: 'Date', clearable: false),
@@ -228,48 +236,37 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
                 ),
                 const SizedBox(height: 10),
               ],
-              if (widget.kind == ItemKind.task) ...[
+              if (!customKind && _sections.isNotEmpty) ...[
                 _segmented(
-                  const {
-                    'time': 'Time-sensitive',
-                    'admin': 'Admin',
-                    'declutter': 'Declutter',
-                  },
+                  {for (final s in _sections) s.id: s.label},
                   _section,
                   (v) => setState(() => _section = v),
                 ),
-                const SizedBox(height: 10),
-                _dateRow(label: 'Due'),
                 const SizedBox(height: 10),
               ],
-              if (widget.kind == ItemKind.buy) ...[
-                _segmented(
-                  const {'p0': 'Priority 0', 'wishlist': 'Wishlist'},
-                  _section,
-                  (v) => setState(() => _section = v),
-                ),
+              if (!customKind && (_spec?.dueDate ?? false)) ...[
+                _dateRow(label: 'Due'),
                 const SizedBox(height: 10),
               ],
               if (widget.kind == ItemKind.deal ||
                   widget.kind == ItemKind.budget ||
-                  widget.kind == ItemKind.buy) ...[
-                _field(_amount, 'Amount (৳, optional)',
-                    keyboard: TextInputType.number),
+                  (!customKind && (_spec?.amount ?? false))) ...[
+                _field(
+                  _amount,
+                  'Amount (৳, optional)',
+                  keyboard: TextInputType.number,
+                ),
                 const SizedBox(height: 10),
               ],
-              _field(_note, 'Notes (optional)', maxLines: 3),
+              _field(
+                _note,
+                _spec?.noteHint ?? 'Notes (optional)',
+                maxLines: _spec?.noteLines ?? 3,
+              ),
               const SizedBox(height: 18),
               FilledButton(
                 onPressed: _save,
-                style: FilledButton.styleFrom(
-                  backgroundColor: section.color,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                child: Text(_isEdit ? 'Save changes' : 'Add',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w600)),
+                child: Text(_isEdit ? 'Save changes' : 'Add $singular'),
               ),
             ],
           ),
@@ -278,29 +275,22 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     );
   }
 
-  Widget _field(TextEditingController c, String hint,
-      {bool autofocus = false,
-      int maxLines = 1,
-      TextInputType? keyboard,
-      ValueChanged<String>? onChanged}) {
+  Widget _field(
+    TextEditingController c,
+    String hint, {
+    bool autofocus = false,
+    int maxLines = 1,
+    TextInputType? keyboard,
+    ValueChanged<String>? onChanged,
+  }) {
     return TextField(
       controller: c,
       autofocus: autofocus,
       maxLines: maxLines,
       keyboardType: keyboard,
       onChanged: onChanged,
-      style: const TextStyle(fontSize: 16),
-      decoration: InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: context.colors.card,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
+      style: context.text.bodyLarge,
+      decoration: InputDecoration(hintText: hint),
     );
   }
 
@@ -308,11 +298,14 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
   /// accessibility semantics out of the box (replaces a hand-rolled Wrap of
   /// GestureDetectors that had no press feedback or a11y traits).
   Widget _segmented(
-      Map<String, String> options, String? value, ValueChanged<String> onTap) {
+    Map<String, String> options,
+    String? value,
+    ValueChanged<String> onTap,
+  ) {
     return CupertinoSlidingSegmentedControl<String>(
       groupValue: value,
       backgroundColor: context.colors.card,
-      thumbColor: sectionFor(widget.kind).color,
+      thumbColor: context.colors.primary,
       children: {
         for (final e in options.entries)
           e.key: Padding(
@@ -320,7 +313,9 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
             child: Text(
               e.value,
               style: TextStyle(
-                color: e.key == value ? Colors.white : context.colors.ink,
+                color: e.key == value
+                    ? context.colors.onPrimary
+                    : context.colors.ink,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -345,7 +340,9 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
       children: [
         Expanded(
           child: Text(
-            date == null ? 'No due date' : '$label · ${_dateLabel.format(date)}',
+            date == null
+                ? 'No due date'
+                : '$label · ${_dateLabel.format(date)}',
             style: TextStyle(color: context.colors.inkSub, fontSize: 15),
           ),
         ),
@@ -381,19 +378,23 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     // Includes whatever this row is already tagged with, even if that category
     // has since been removed (or came from another device — the list itself is
     // per-device), so opening an old transaction can't silently retag it.
-    final options =
-        mergeUsedCategories(ref.watch(txnCategoriesProvider), [_category]);
+    final options = mergeUsedCategories(ref.watch(txnCategoriesProvider), [
+      _category,
+    ]);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text('Category',
-              style: TextStyle(
-                  color: c.inkSub,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3)),
+          child: Text(
+            'Category',
+            style: TextStyle(
+              color: c.inkSub,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.3,
+            ),
+          ),
         ),
         Wrap(
           spacing: 8,
@@ -405,12 +406,11 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
                 selected: name == _category,
                 showCheckmark: false,
                 backgroundColor: c.card,
-                selectedColor: categoryColor(name),
-                side: BorderSide.none,
+                selectedColor: context.colors.primary,
                 labelStyle: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: name == _category ? Colors.white : c.ink,
+                  color: name == _category ? c.onPrimary : c.ink,
                 ),
                 onSelected: (_) {
                   HapticFeedback.selectionClick();
@@ -421,9 +421,11 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
               avatar: const Icon(CupertinoIcons.add, size: 16),
               label: const Text('New'),
               backgroundColor: c.card,
-              side: BorderSide.none,
               labelStyle: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: c.ink),
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: c.ink,
+              ),
               onPressed: _promptNewCategory,
             ),
           ],
@@ -439,8 +441,11 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     final notifier = ref.read(txnCategoriesProvider.notifier);
     // `add` returns null for a duplicate; select the existing one rather than
     // doing nothing, since picking it is what the user meant either way.
-    final added = notifier.add(clean) ??
-        ref.read(txnCategoriesProvider).firstWhere(
+    final added =
+        notifier.add(clean) ??
+        ref
+            .read(txnCategoriesProvider)
+            .firstWhere(
               (existing) => existing.toLowerCase() == clean.toLowerCase(),
               orElse: () => clean,
             );

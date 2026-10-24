@@ -2,12 +2,12 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/item.dart';
-import '../providers/providers.dart';
-import '../services/txn_category_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/common.dart';
-import '../widgets/new_category_dialog.dart';
+import '../../models/item.dart';
+import '../../providers/providers.dart';
+import '../../services/txn_category_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/common.dart';
+import '../../widgets/new_category_dialog.dart';
 
 /// Add and remove the categories the Transactions screen tags entries with.
 ///
@@ -43,8 +43,13 @@ class TxnCategoriesScreen extends ConsumerWidget {
           groupHeader(context, 'Transaction categories'),
           cardGroup(context, [
             for (var i = 0; i < categories.length; i++) ...[
-              _row(context, ref, categories[i], counts[categories[i]] ?? 0,
-                  configured: configured.contains(categories[i])),
+              _row(
+                context,
+                ref,
+                categories[i],
+                counts[categories[i]] ?? 0,
+                configured: configured.contains(categories[i]),
+              ),
               rowDivider(context),
             ],
             _addTile(context, ref),
@@ -62,15 +67,22 @@ class TxnCategoriesScreen extends ConsumerWidget {
     );
   }
 
-  Widget _row(BuildContext context, WidgetRef ref, String name, int uses,
-      {required bool configured}) {
+  Widget _row(
+    BuildContext context,
+    WidgetRef ref,
+    String name,
+    int uses, {
+    required bool configured,
+  }) {
     final c = context.colors;
     return ListTile(
       leading: Container(
         width: 12,
         height: 12,
-        decoration:
-            BoxDecoration(color: categoryColor(name), shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: categoryAccent(name).chart,
+          shape: BoxShape.circle,
+        ),
       ),
       title: Text(name),
       subtitle: Text(
@@ -85,8 +97,11 @@ class TxnCategoriesScreen extends ConsumerWidget {
       trailing: configured
           ? IconButton(
               tooltip: 'Remove $name',
-              icon: const Icon(CupertinoIcons.minus_circle,
-                  color: AppColors.rose, size: 20),
+              icon: Icon(
+                CupertinoIcons.minus_circle,
+                color: c.negative,
+                size: 20,
+              ),
               onPressed: () => _remove(context, ref, name, uses),
             )
           : TextButton(
@@ -102,17 +117,22 @@ class TxnCategoriesScreen extends ConsumerWidget {
       color: context.colors.card,
       child: InkWell(
         onTap: () => _promptAdd(context, ref),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
-              Icon(CupertinoIcons.add_circled, size: 20, color: AppColors.sky),
-              SizedBox(width: 10),
-              Text('Add a category',
-                  style: TextStyle(
-                      color: AppColors.sky,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
+              Icon(
+                CupertinoIcons.add_circled,
+                size: 20,
+                color: context.colors.primary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Add a category',
+                style: context.text.titleSmall!.copyWith(
+                  color: context.colors.primary,
+                ),
+              ),
             ],
           ),
         ),
@@ -121,7 +141,11 @@ class TxnCategoriesScreen extends ConsumerWidget {
   }
 
   Future<void> _remove(
-      BuildContext context, WidgetRef ref, String name, int uses) async {
+    BuildContext context,
+    WidgetRef ref,
+    String name,
+    int uses,
+  ) async {
     if (uses > 0) {
       final confirmed = await showDialog<bool>(
         context: context,
@@ -139,8 +163,10 @@ class TxnCategoriesScreen extends ConsumerWidget {
             ),
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Remove',
-                  style: TextStyle(color: AppColors.rose)),
+              child: Text(
+                'Remove',
+                style: TextStyle(color: context.colors.negative),
+              ),
             ),
           ],
         ),
@@ -169,9 +195,9 @@ class TxnCategoriesScreen extends ConsumerWidget {
     final clean = name?.trim() ?? '';
     if (clean.isEmpty || !context.mounted) return;
     if (ref.read(txnCategoriesProvider.notifier).add(clean) == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"$clean" is already a category')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('"$clean" is already a category')));
     }
   }
 }

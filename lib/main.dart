@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'data/seed_loader.dart';
 import 'models/history_event.dart';
 import 'models/item.dart';
 import 'providers/providers.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/budget_reset_service.dart';
 import 'services/secure_session_storage.dart';
 import 'theme/app_theme.dart';
@@ -19,6 +21,17 @@ import 'widgets/auth_gate.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Bundled fonts are SIL OFL — list them on Settings → About → Licences.
+  LicenseRegistry.addLicense(() async* {
+    for (final (family, file) in const [
+      ('DM Sans', 'OFL-DMSans.txt'),
+      ('Newsreader', 'OFL-Newsreader.txt'),
+    ]) {
+      yield LicenseEntryWithLineBreaks([
+        family,
+      ], await rootBundle.loadString('assets/fonts/$file'));
+    }
+  });
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   // Cloud (optional — the app is fully usable offline without keys).
@@ -49,8 +62,10 @@ Future<void> main() async {
 
   // Local DB — the source of truth the UI renders from.
   final dir = await getApplicationDocumentsDirectory();
-  final isar =
-      await Isar.open([ItemSchema, HistoryEventSchema], directory: dir.path);
+  final isar = await Isar.open([
+    ItemSchema,
+    HistoryEventSchema,
+  ], directory: dir.path);
 
   // One-time bootstrap from the bundled seed (if present). When Supabase is
   // configured this instead runs from AuthGate once a session exists — an
@@ -88,7 +103,7 @@ class LifeManagerApp extends ConsumerWidget {
       theme: buildTheme(),
       darkTheme: buildTheme(brightness: Brightness.dark),
       themeMode: themeMode,
-      home: const AppLockGate(child: AuthGate()),
+      home: const AppLockGate(child: OnboardingGate(child: AuthGate())),
     );
   }
 }

@@ -12,13 +12,13 @@ import '../config/supabase_config.dart';
 import '../providers/providers.dart';
 import '../services/backup_service.dart';
 import '../services/reset_service.dart';
-import '../services/settings_service.dart' show BudgetSplit;
+import '../services/vault_hooks.dart';
 import '../services/sync_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
 import '../widgets/delete_everything_dialog.dart';
 import 'history_screen.dart';
-import 'txn_categories_screen.dart';
+import '../widgets/leaf_mark.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -28,18 +28,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late final _salary = TextEditingController(
-      text: ref.read(monthlySalaryProvider).toStringAsFixed(0));
-
-  late final _split = ref.read(budgetSplitProvider);
-  late final _needsPct =
-      TextEditingController(text: _pctText(_split.needs));
-  late final _wantsPct =
-      TextEditingController(text: _pctText(_split.wants));
-  late final _savingsPct =
-      TextEditingController(text: _pctText(_split.savings));
-
-  static String _pctText(double frac) => (frac * 100).round().toString();
+  late final _name = TextEditingController(text: ref.read(userNameProvider));
 
   /// True while an export/import is in flight, so the tiles can't be tapped
   /// twice and the export shows a spinner.
@@ -47,10 +36,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
-    _salary.dispose();
-    _needsPct.dispose();
-    _wantsPct.dispose();
-    _savingsPct.dispose();
+    _name.dispose();
     super.dispose();
   }
 
@@ -66,29 +52,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         padding: const EdgeInsets.only(bottom: 32),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+            padding: const EdgeInsets.fromLTRB(22, 12, 22, 4),
             child: Row(
               children: [
-                Image.asset('assets/brand/logo.png',
-                    width: 40, height: 40, filterQuality: FilterQuality.medium),
-                const SizedBox(width: 12),
+                const LeafMark(size: 44),
+                const SizedBox(width: 14),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Blankframe',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.w700,
-                          color: c.ink,
-                        )),
-                    Text('Life manager',
-                        style: TextStyle(fontSize: 13, color: c.inkSub)),
+                    Text('Life Manager', style: context.text.headlineSmall),
+                    Text(
+                      'Your data stays on this device.',
+                      style: context.text.bodySmall,
+                    ),
                   ],
                 ),
               ],
             ),
           ),
+          groupHeader(context, 'Profile'),
+          cardGroup(context, [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _name,
+                textCapitalization: TextCapitalization.words,
+                decoration: const InputDecoration(
+                  labelText: 'Your name',
+                  helperText: 'Used in the home greeting',
+                ),
+                onChanged: (v) => ref.read(userNameProvider.notifier).set(v),
+              ),
+            ),
+          ]),
           groupHeader(context, 'Appearance'),
           cardGroup(context, [
             Padding(
@@ -97,14 +94,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 groupValue: themeMode,
                 children: const {
                   ThemeMode.system: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('System')),
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('System'),
+                  ),
                   ThemeMode.light: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('Light')),
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('Light'),
+                  ),
                   ThemeMode.dark: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text('Dark')),
+                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    child: Text('Dark'),
+                  ),
                 },
                 onValueChanged: (mode) {
                   if (mode != null) {
@@ -114,123 +114,86 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ]),
-          groupHeader(context, 'Budget'),
-          cardGroup(context, [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: TextField(
-                controller: _salary,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Monthly salary (৳)',
-                  helperText: 'Used for the budget split below',
+          // Each enabled module may contribute a block (Budget, Transactions…).
+          for (final m in ref.watch(appConfigProvider).modules)
+            if (m.buildSettings(context) case final block?) ...[
+              groupHeader(context, m.title),
+              cardGroup(context, [block]),
+            ],
+          if (!SupabaseConfig.isConfigured) ...[
+            groupHeader(context, 'Storage'),
+            cardGroup(context, [
+              const ListTile(
+                leading: Icon(CupertinoIcons.device_phone_portrait),
+                title: Text('On this device only'),
+                subtitle: Text(
+                  'Nothing leaves your phone. Export a backup '
+                  'from Data & Vault below.',
                 ),
-                onSubmitted: _saveSalary,
-                onEditingComplete: () => _saveSalary(_salary.text),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                      child: _splitField(context, 'Needs %', _needsPct)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: _splitField(context, 'Wants %', _wantsPct)),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: _splitField(context, 'Savings %', _savingsPct)),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Builder(builder: (context) {
-                final sum = _splitSum();
-                final ok = sum == 100;
-                return Text(
-                  ok
-                      ? 'Splits add up to 100%'
-                      : 'Splits add up to $sum% — should be 100%',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: ok ? c.inkSub : AppColors.rose),
-                );
-              }),
-            ),
-          ]),
-          groupHeader(context, 'Transactions'),
-          cardGroup(context, [
-            ListTile(
-              leading: const Icon(CupertinoIcons.tag),
-              title: const Text('Categories'),
-              subtitle: Text(
-                  '${ref.watch(txnCategoriesProvider).length} categories for '
-                  'the spend/earn log'),
-              trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const TxnCategoriesScreen()),
-              ),
-            ),
-          ]),
-          groupHeader(context, 'Sync'),
-          cardGroup(context, [
-            ValueListenableBuilder<bool>(
-              valueListenable: sync.isOnline,
-              builder: (context, online, _) => ListTile(
-                leading: Icon(
-                  online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
-                  color: online ? AppColors.green : c.inkSub,
-                ),
-                title: Text(online ? 'Online' : 'Offline'),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ValueListenableBuilder<DateTime?>(
-                      valueListenable: sync.lastSyncedAt,
-                      builder: (context, value, _) => Text(
-                        value == null
-                            ? 'Not synced yet'
-                            : 'Last synced ${DateFormat('d MMM, HH:mm').format(value)}',
+            ]),
+          ],
+          if (SupabaseConfig.isConfigured) ...[
+            groupHeader(context, 'Sync'),
+            cardGroup(context, [
+              ValueListenableBuilder<bool>(
+                valueListenable: sync.isOnline,
+                builder: (context, online, _) => ListTile(
+                  leading: Icon(
+                    online ? CupertinoIcons.cloud : CupertinoIcons.cloud_bolt,
+                    color: online ? c.positive : c.inkSub,
+                  ),
+                  title: Text(online ? 'Online' : 'Offline'),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ValueListenableBuilder<DateTime?>(
+                        valueListenable: sync.lastSyncedAt,
+                        builder: (context, value, _) => Text(
+                          value == null
+                              ? 'Not synced yet'
+                              : 'Last synced ${DateFormat('d MMM, HH:mm').format(value)}',
+                        ),
                       ),
-                    ),
-                    // Reassurance, not an error: offline is a normal state and
-                    // nothing is lost in it.
-                    if (!online && sync.enabled)
-                      const Text('Changes are saved here and will sync '
-                          'automatically when you reconnect.'),
-                    ValueListenableBuilder<String?>(
-                      valueListenable: sync.lastError,
-                      builder: (context, error, _) =>
-                          error == null || (!online && sync.enabled)
-                              ? const SizedBox.shrink()
-                              : Text(
-                                  'Sync error: $error',
-                                  style: const TextStyle(color: AppColors.rose),
-                                ),
-                    ),
-                  ],
-                ),
-                // Gated on `enabled` rather than `online` so someone who knows
-                // their connection is back can skip the 30s retry tick.
-                trailing: TextButton(
-                  onPressed:
-                      sync.enabled ? () => _syncNow(context, sync) : null,
-                  child: const Text('Sync now'),
+                      // Reassurance, not an error: offline is a normal state and
+                      // nothing is lost in it.
+                      if (!online && sync.enabled)
+                        const Text(
+                          'Changes are saved here and will sync '
+                          'automatically when you reconnect.',
+                        ),
+                      ValueListenableBuilder<String?>(
+                        valueListenable: sync.lastError,
+                        builder: (context, error, _) =>
+                            error == null || (!online && sync.enabled)
+                            ? const SizedBox.shrink()
+                            : Text(
+                                'Sync error: $error',
+                                style: TextStyle(color: c.negative),
+                              ),
+                      ),
+                    ],
+                  ),
+                  // Gated on `enabled` rather than `online` so someone who knows
+                  // their connection is back can skip the 30s retry tick.
+                  trailing: TextButton(
+                    onPressed: sync.enabled
+                        ? () => _syncNow(context, sync)
+                        : null,
+                    child: const Text('Sync now'),
+                  ),
                 ),
               ),
-            ),
-          ]),
+            ]),
+          ],
           if (SupabaseConfig.isConfigured) ...[
             groupHeader(context, 'Account'),
             cardGroup(context, [
               ListTile(
                 leading: const Icon(CupertinoIcons.person_circle),
                 title: Text(
-                  ref.watch(sessionProvider).session?.user.email ??
-                      'Signed in',
+                  ref.watch(sessionProvider).session?.user.email ?? 'Signed in',
                 ),
                 trailing: TextButton(
                   onPressed: () => ref.read(authServiceProvider).signOut(),
@@ -239,35 +202,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ]),
           ],
-          groupHeader(context, 'Data'),
+          groupHeader(context, 'Data & Vault'),
           cardGroup(context, [
             ListTile(
               leading: const Icon(CupertinoIcons.square_arrow_up),
               title: const Text('Export data'),
               subtitle: const Text(
-                  'Save everything as a JSON file you can keep or move'),
+                'Save everything as a JSON file you can keep or move',
+              ),
               trailing: _busy
                   ? const SizedBox(
                       width: 16,
                       height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
                   : const Icon(CupertinoIcons.chevron_right, size: 18),
               onTap: _busy ? null : _exportData,
             ),
             ListTile(
               leading: const Icon(CupertinoIcons.square_arrow_down),
               title: const Text('Import data'),
-              subtitle:
-                  const Text('Merge a backup file — nothing is deleted'),
+              subtitle: const Text('Merge a backup file — nothing is deleted'),
               trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
               onTap: _busy ? null : _importData,
             ),
+            ..._vaultTiles(context),
             ListTile(
-              leading: const Icon(CupertinoIcons.trash, color: AppColors.rose),
-              title: const Text('Delete all data',
-                  style: TextStyle(color: AppColors.rose)),
+              leading: Icon(CupertinoIcons.trash, color: c.negative),
+              title: Text(
+                'Delete all data',
+                style: TextStyle(color: c.negative),
+              ),
               subtitle: const Text(
-                  'Erase everything here and in the cloud, and sign out'),
+                'Erase everything here and in the cloud, and sign out',
+              ),
               trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
               onTap: _busy ? null : _deleteAllData,
             ),
@@ -281,8 +249,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: const Text('Activity History'),
               subtitle: const Text('Every add, edit, and delete over time'),
               trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const HistoryScreen()),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const HistoryScreen())),
+            ),
+          ]),
+          groupHeader(context, 'About'),
+          cardGroup(context, [
+            ListTile(
+              leading: const Icon(CupertinoIcons.doc_plaintext),
+              title: const Text('Licences'),
+              subtitle: const Text('Open-source software and fonts'),
+              trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
+              onTap: () => showLicensePage(
+                context: context,
+                applicationName: 'Life Manager',
               ),
             ),
           ]),
@@ -376,9 +357,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('${summary.items} items and ${summary.history} history '
-                'entries${when == null ? '' : ', saved '
-                    '${DateFormat('d MMM yyyy, HH:mm').format(when)}'}.'),
+            Text(
+              '${summary.items} items and ${summary.history} history '
+              'entries${when == null ? '' : ', saved '
+                        '${DateFormat('d MMM yyyy, HH:mm').format(when)}'}.',
+            ),
             const SizedBox(height: 12),
             const Text(
               'Nothing is deleted. Where the same item exists in both, the '
@@ -435,13 +418,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<bool?> _confirmDelete() => showDialog<bool>(
-        context: context,
-        builder: (_) =>
-            DeleteEverythingDialog(cloud: SupabaseConfig.isConfigured),
-      );
+    context: context,
+    builder: (_) => DeleteEverythingDialog(cloud: SupabaseConfig.isConfigured),
+  );
 
-  void _toast(String message) => ScaffoldMessenger.of(context)
-      .showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message) => ScaffoldMessenger.of(
+    context,
+  ).showSnackBar(SnackBar(content: Text(message)));
 
   /// Keeps raw platform/plugin detail out of a SnackBar in release builds.
   static String _short(Object e) =>
@@ -485,49 +468,30 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  void _saveSalary(String text) {
-    final v = double.tryParse(text.trim());
-    if (v != null && v > 0) {
-      ref.read(monthlySalaryProvider.notifier).set(v);
-    }
-  }
-
-  Widget _splitField(
-      BuildContext context, String label, TextEditingController controller) {
-    return TextField(
-      controller: controller,
-      keyboardType: TextInputType.number,
-      textAlign: TextAlign.center,
-      decoration: InputDecoration(labelText: label),
-      onChanged: (_) => setState(() {}),
-      onSubmitted: (_) => _saveSplit(),
-      onEditingComplete: _saveSplit,
-    );
-  }
-
-  int _splitSum() {
-    int parse(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
-    return parse(_needsPct) + parse(_wantsPct) + parse(_savingsPct);
-  }
-
-  void _saveSplit() {
-    final needs = int.tryParse(_needsPct.text.trim());
-    final wants = int.tryParse(_wantsPct.text.trim());
-    final savings = int.tryParse(_savingsPct.text.trim());
-    if (needs == null ||
-        wants == null ||
-        savings == null ||
-        needs < 0 ||
-        wants < 0 ||
-        savings < 0) {
-      return;
-    }
-    ref.read(budgetSplitProvider.notifier).set(BudgetSplit(
-          needs: needs / 100,
-          wants: wants / 100,
-          savings: savings / 100,
-        ));
-    setState(() {});
+  /// Placeholders for the encrypted vault — see `services/vault_hooks.dart`.
+  List<Widget> _vaultTiles(BuildContext context) {
+    final vault = ref.watch(vaultActionsProvider);
+    final soon = vault.available ? null : const Text('Coming soon');
+    return [
+      ListTile(
+        leading: const Icon(CupertinoIcons.lock_rotation),
+        title: const Text('Save encrypted vault'),
+        subtitle: soon ?? const Text('A passphrase-protected backup file'),
+        onTap: () => vault.saveVault(context),
+      ),
+      ListTile(
+        leading: const Icon(CupertinoIcons.folder_open),
+        title: const Text('Open vault file'),
+        subtitle: soon,
+        onTap: () => vault.openVault(context),
+      ),
+      ListTile(
+        leading: const Icon(CupertinoIcons.textformat_abc_dottedunderline),
+        title: const Text('Change passphrase'),
+        subtitle: soon,
+        onTap: () => vault.changePassphrase(context),
+      ),
+    ];
   }
 
   Future<void> _syncNow(BuildContext context, SyncService sync) async {
@@ -540,12 +504,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // and no action is needed, so say that rather than "failed N".
           !sync.reachable
               ? 'Still offline — your changes are saved and will sync '
-                  'automatically'
+                    'automatically'
               : result.failed == 0
-                  ? (result.pushed == 0
-                      ? 'Already up to date'
-                      : 'Synced ${result.pushed} item(s)')
-                  : 'Synced ${result.pushed}, failed ${result.failed} — see error below',
+              ? (result.pushed == 0
+                    ? 'Already up to date'
+                    : 'Synced ${result.pushed} item(s)')
+              : 'Synced ${result.pushed}, failed ${result.failed} — see error below',
         ),
       ),
     );

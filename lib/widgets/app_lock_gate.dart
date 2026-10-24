@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
+import 'leaf_mark.dart';
 
 /// Wraps the app in a biometric lock when the user has enabled it in Settings.
 ///
@@ -88,8 +89,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     // A failed capability check counts as "can't authenticate" for the same
     // reason — never hold the user behind a prompt we can't reason about.
     final availability = ref.watch(appLockAvailableProvider);
-    final available =
-        availability.hasError ? false : availability.valueOrNull;
+    final available = availability.hasError ? false : availability.valueOrNull;
     if (available == false) {
       // Turn the setting off so Settings shows the truth rather than a switch
       // that claims to be protecting something.
@@ -124,10 +124,12 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(CupertinoIcons.lock_fill, size: 56),
-                const SizedBox(height: 20),
-                Text('Locked',
-                    style: Theme.of(context).textTheme.headlineSmall),
+                const LeafMark(size: 80),
+                const SizedBox(height: 28),
+                Text(
+                  'Locked',
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Unlock with biometrics or your device passcode.',
