@@ -1,7 +1,9 @@
 # Life Manager
 
 A fast, **offline-first** personal life manager for iOS and Android, built with
-Flutter. It organizes six things and **syncs them across your devices**:
+Flutter. Your data stays on the phone, in a local database plus one encrypted
+vault file you control. Cloud sync exists but is **off by default** (V2).
+It organizes these things:
 
 | Tab | What it holds |
 |-----|---------------|
@@ -13,9 +15,8 @@ Flutter. It organizes six things and **syncs them across your devices**:
 | **Dreams**   | Big long-term wishes |
 
 Everything reads and writes to an on-device database **instantly** (0 ms — the
-UI never waits on the network); a background worker syncs to the cloud when
-online. Open the app on a second device signed into the same backend and edits
-appear live.
+UI never waits on the network). With cloud sync turned on (see V2 below), a
+background worker mirrors it to Supabase.
 
 ## V2 (branch `V2`)
 
@@ -27,6 +28,19 @@ appear live.
 - **Local by default.** `kCloudSyncEnabled = false` in `lib/app_modules.dart`
   turns off Supabase sign-in and sync, even when keys are passed. The sync
   code below is unchanged; flip the flag to use it.
+- **Encrypted vault.** Settings → Data & Vault keeps all data in one file,
+  `LifeManager.lmvault`, in Files › On My iPhone › Life Manager (copy it to
+  iCloud Drive or AirDrop it like any file). It is AES-256-GCM under a
+  PBKDF2-SHA256 key (600,000 rounds) from your passphrase, and it auto-saves
+  after every change while unlocked. "Remember on this iPhone" keeps the
+  passphrase in the Keychain so the vault unlocks at launch. Opening a vault
+  (picker, or tapping a `.lmvault` in Files / AirDrop) merges it with
+  last-write-wins, like sync. A lost passphrase can't be recovered. The format
+  is written for a future browser version using WebCrypto only:
+  [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md), code in `lib/vault/`.
+- **Where data lives on iOS.** The Isar DB is in Library/Application Support
+  (excluded from backups; moved there from Documents on first V2 launch).
+  Documents, which Files shows, holds only the encrypted vault.
 - **Design.** Warm cream and forest green, light and dark palettes, bundled
   DM Sans + Newsreader fonts (SIL OFL, in `assets/fonts/`). Home has a
   greeting, quick tiles and module cards, and each module has an intro page.

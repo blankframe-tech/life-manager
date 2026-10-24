@@ -1,5 +1,41 @@
 # Handoff — Life Manager (2026-08-11)
 
+> **Current state: branch `V2` (2026-10-24).** Read this section first; the
+> dated notes below it are history from `main` and V1.
+
+## V2 at a glance
+
+- **Modules.** Features are `LifeModule`s in `lib/modules/<name>/`, listed
+  and ordered in `lib/app_modules.dart`. How to add, remove or reorder one:
+  `docs/MODULES.md`. Agent rules: `AGENTS.md`.
+- **Cloud sync is off.** `kCloudSyncEnabled = false` in `lib/app_modules.dart`:
+  no sign-in and no Supabase traffic, even with keys in `.env`. The sync and
+  auth notes further down apply only if you turn it back on.
+- **Encrypted vault** (`lib/vault/`, spec `docs/VAULT_FORMAT.md`):
+  - `vault_codec.dart`: the `LMV1` format. PBKDF2-HMAC-SHA256 (600k, over the
+    NFC-normalized passphrase) and AES-256-GCM, with the header as associated
+    data. Test vectors and a sample in `test/vault/vectors/`
+    (sample passphrase: `correct horse battery staple`).
+  - `vault_service.dart`: writes `Documents/LifeManager.lmvault` atomically,
+    merges on open through `BackupService.importJson` (last-write-wins),
+    auto-saves 2 s after changes while unlocked, and merges a file replaced
+    from outside before overwriting it.
+  - `vault_ui.dart`: Settings → Data & Vault (`VaultTiles`) and `VaultGate`
+    (silent Keychain unlock at launch; the Open vault sheet for files from
+    Files / AirDrop).
+  - iOS open-in: `VaultOpenIn` in `ios/Runner/AppDelegate.swift` copies the
+    opened file out of its security-scoped location and hands the path to
+    `lib/vault/vault_open_in.dart`.
+- **Storage on iOS.** The Isar DB lives in Library/Application Support
+  (`lib/services/local_db.dart`, which moves a pre-V2 DB out of Documents
+  once). Documents is visible in Files (`UIFileSharingEnabled`) and must hold
+  only the encrypted vault: never write plaintext there.
+- **Verify:** `scripts/check.sh` (0 analyze issues, all tests) and
+  `flutter build ios --simulator --no-codesign`.
+- **Open:** a browser version that reads and writes the vault (WebCrypto,
+  per `docs/VAULT_FORMAT.md`) is planned and not started.
+
+
 Branch `main`. Working tree has **uncommitted changes** implementing auth
 hardening, a Buy→Dreams merge, an activity history log, and a
 user-configurable budget split — see "What changed today" below before
