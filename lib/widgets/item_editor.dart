@@ -138,7 +138,11 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     item.category = (widget.kind == ItemKind.budget || _isTxn)
         ? _category
         : null;
-    item.section = _sections.isNotEmpty ? _section : null;
+    // A kind without a section picker keeps whatever section the row came
+    // with (a canvas section id), so editing never moves it off its canvas.
+    item.section = _sections.isNotEmpty
+        ? _section
+        : widget.existing?.section ?? widget.initialSection;
     item.dueDate = _dueDate;
     await sync.save(item);
     if (mounted) Navigator.pop(context);
@@ -303,7 +307,8 @@ class _ItemEditorState extends ConsumerState<_ItemEditor> {
     ValueChanged<String> onTap,
   ) {
     return CupertinoSlidingSegmentedControl<String>(
-      groupValue: value,
+      // A canvas row's section isn't one of the module's: show none picked.
+      groupValue: options.containsKey(value) ? value : null,
       backgroundColor: context.colors.card,
       thumbColor: context.colors.primary,
       children: {

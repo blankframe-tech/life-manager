@@ -12,7 +12,7 @@ import 'package:life_manager/services/sync_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/isar_core.dart';
-import 'fixtures.dart';
+import 'package:life_manager/canvas/samples.dart';
 
 Future<CanvasNotifier> fresh([Map<String, Object> prefs = const {}]) async {
   SharedPreferences.setMockInitialValues(prefs);

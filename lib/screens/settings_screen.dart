@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../canvas/morph_screen.dart';
 import '../config/supabase_config.dart';
 import '../providers/providers.dart';
 import '../services/backup_service.dart';
@@ -113,6 +114,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
             ),
+          ]),
+          groupHeader(context, 'Layout'),
+          cardGroup(context, [
+            ListTile(
+              leading: const Icon(CupertinoIcons.wand_stars),
+              title: const Text('Shape from my notes'),
+              subtitle: const Text(
+                'Paste or pick what you already use; the app takes its shape',
+              ),
+              trailing: const Icon(CupertinoIcons.chevron_right, size: 18),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const MorphScreen())),
+            ),
+            if (ref.watch(canvasProvider.select((s) => s.active)))
+              ListTile(
+                leading: const Icon(CupertinoIcons.square_grid_2x2),
+                title: const Text('Use the standard layout'),
+                subtitle: const Text(
+                  'Home, Budget, Tasks… Your rows stay; only the shape goes',
+                ),
+                onTap: _useStandardLayout,
+              ),
           ]),
           // Each enabled module may contribute a block (Budget, Transactions…).
           for (final m in ref.watch(appConfigProvider).modules)
@@ -298,6 +322,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _useStandardLayout() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Use the standard layout?'),
+        content: const Text(
+          'Everything you added stays, in Budget, Tasks, Notes and the rest. '
+          'You can shape the app from your notes again any time.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Switch'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    ref.read(canvasProvider.notifier).reset();
+    Navigator.of(context).popUntil((r) => r.isFirst);
+  }
+
   /// Picks a backup file, confirms what's in it, then merges.
   Future<void> _importData() async {
     try {
@@ -404,6 +454,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ref.invalidate(monthlySalaryProvider);
       ref.invalidate(budgetSplitProvider);
       ref.invalidate(appLockEnabledProvider);
+      ref.invalidate(canvasProvider);
       // The SnackBar comes from the root messenger above AuthGate, so it
       // survives the sign-out swapping this screen for the sign-in screen.
       _toast(report.summary);

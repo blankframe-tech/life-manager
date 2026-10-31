@@ -3,7 +3,7 @@ import 'package:life_manager/canvas/blueprint.dart';
 import 'package:life_manager/canvas/shaper.dart';
 import 'package:life_manager/models/item.dart';
 
-import 'fixtures.dart';
+import 'package:life_manager/canvas/samples.dart';
 
 /// Sunday 1 Nov 2026.
 final now = DateTime(2026, 11, 1, 10);

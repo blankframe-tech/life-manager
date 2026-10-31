@@ -1,4 +1,8 @@
-// Sample material people already keep. Names and numbers are made up.
+// Sample material people already keep, for "Try an example" in the import
+// screen. Names and numbers are made up. test/canvas/ asserts on exactly this
+// text, so change the tests with it.
+
+import 'shaper.dart';
 
 /// One big pinned note: money, people, lists, dreams, all in one place.
 const keepNote = '''
@@ -52,3 +56,10 @@ Date,Item,Amount,Category,Paid by
 05/10/2026,Groceries,"4,200",Food,Cash
 12/10/2026,Netflix,450,Fun,Card
 ''';
+
+/// The three samples as sources, in the order the import screen adds them.
+const kSampleSources = [
+  SourceDoc('Pinned note', keepNote),
+  SourceDoc('WhatsApp Chat with Me.txt', whatsAppChat),
+  SourceDoc('Budget 2026.csv', budgetCsv),
+];
