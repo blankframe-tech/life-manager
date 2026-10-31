@@ -3,6 +3,17 @@
 > **Current state: branch `V2` (2026-10-24).** Read this section first; the
 > dated notes below it are history from `main` and V1.
 
+## refresh: the canvas (2026-11-01)
+
+Branch `refresh` (from `V2`). The app can take the shape of what the user
+already keeps: paste a Keep note, a WhatsApp chat with yourself, or a CSV
+budget sheet, and it compiles (offline, deterministic) into 0–6 tabs of
+sections in the user's own order. The shape is computed once and saved;
+launch only decodes it. Rows are ordinary `Item`s, so Budget / Tasks /
+backup / vault keep working. Full design, rules and the JSON contract:
+`docs/CANVAS.md`. Verified: `scripts/check.sh` and
+`flutter build ios --simulator --no-codesign`. Not run on a device.
+
 ## V2 at a glance
 
 - **Modules.** Features are `LifeModule`s in `lib/modules/<name>/`, listed

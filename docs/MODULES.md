@@ -98,3 +98,10 @@ your `ItemSpec`.
 `kCloudSyncEnabled` in the same file is `false`: data stays on the device even
 when a build has Supabase keys. Set it to `true` to bring back sign-in and sync
 (see README → Supabase setup).
+
+## The canvas
+
+When the user shapes the app from their own notes (`docs/CANVAS.md`), the
+shell draws that canvas instead of Home + nav modules. Canvas sections store
+rows with the module kinds above, so modules still show them, and every
+module stays reachable from the canvas menu → Modules, history & settings.

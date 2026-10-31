@@ -6,6 +6,10 @@ Supabase sync exists but is off (`kCloudSyncEnabled` in `lib/app_modules.dart`).
 - **Modules:** every feature is a `LifeModule` in `lib/modules/<name>/`, enabled
   and ordered in `lib/app_modules.dart`. Read [docs/MODULES.md](docs/MODULES.md)
   before adding, removing or reordering one.
+- **Canvas** (branch `refresh`): the app can reshape itself from the user's
+  own notes, chats and CSVs, offline. Code in `lib/canvas/`; read
+  [docs/CANVAS.md](docs/CANVAS.md) before touching the shaper rules or the
+  blueprint JSON. `test/canvas/` asserts on `lib/canvas/samples.dart`.
 - **Theme:** colours come from `context.colors` / `ModuleAccent` in
   `lib/theme/app_theme.dart`. No raw hex in widgets. Keep text ≥ 4.5:1 (a test
   checks the tokens) and tap targets ≥ 44pt.
