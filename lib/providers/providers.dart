@@ -4,6 +4,7 @@ import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_modules.dart';
+import '../canvas/canvas_store.dart';
 import '../models/history_event.dart';
 import '../modules/module.dart';
 import '../models/item.dart';
@@ -27,6 +28,15 @@ final currentTabProvider = StateProvider<String>((ref) => 'home');
 
 /// The module most recently opened — its home quick tile is shown filled.
 final lastModuleProvider = StateProvider<String?>((ref) => null);
+
+/// The morphed canvas: the shape compiled from the user's own notes. While
+/// it is active the shell draws it instead of the module layout.
+final canvasProvider = StateNotifierProvider<CanvasNotifier, CanvasState>(
+  (ref) => CanvasNotifier(ref.watch(sharedPreferencesProvider)),
+);
+
+/// The canvas's selected tab, by tab id.
+final canvasTabProvider = StateProvider<String?>((ref) => null);
 
 /// Name for the home greeting (Settings → Profile, or onboarding).
 final userNameProvider = StateNotifierProvider<UserNameNotifier, String>(
