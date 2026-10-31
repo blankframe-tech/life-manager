@@ -225,7 +225,7 @@ class CanvasSectionView extends ConsumerWidget {
       accent: domainAccent(s.domain),
     );
     Widget row(Item i) => switch (s.type) {
-      SectionType.notes => _NoteRow(item: i),
+      SectionType.notes => _NoteRow(item: i, sectionTitle: s.title),
       SectionType.people => _PersonRow(item: i),
       _ => CategoryItemRow(module: module, item: i),
     };
@@ -428,8 +428,11 @@ class _AddRowState extends ConsumerState<_AddRow> {
 }
 
 class _NoteRow extends ConsumerWidget {
-  const _NoteRow({required this.item});
+  const _NoteRow({required this.item, required this.sectionTitle});
   final Item item;
+
+  /// An imported note is titled after its heading; don't say it twice.
+  final String sectionTitle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -445,9 +448,10 @@ class _NoteRow extends ConsumerWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(item.title, style: context.text.titleSmall),
+                if (item.title != sectionTitle || item.note.isEmpty)
+                  Text(item.title, style: context.text.titleSmall),
                 if (item.note.isNotEmpty) ...[
-                  const SizedBox(height: 4),
+                  if (item.title != sectionTitle) const SizedBox(height: 4),
                   Text(
                     item.note,
                     maxLines: 8,

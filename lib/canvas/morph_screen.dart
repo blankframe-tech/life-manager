@@ -243,12 +243,14 @@ class _PreviewCard extends StatelessWidget {
         ? '${bp.tabs.length} tabs: ${bp.tabs.map((t) => t.title).join(' · ')}'
         : 'One page, no tabs — like a single pinned note.';
     return cardGroup(context, [
-      Padding(
+      Container(
+        alignment: Alignment.centerLeft,
         padding: const EdgeInsets.fromLTRB(18, 14, 18, 4),
         child: Text(headline, style: context.text.titleSmall),
       ),
       if (preview.alreadyIn > 0)
-        Padding(
+        Container(
+          alignment: Alignment.centerLeft,
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 4),
           child: Text(
             '${preview.alreadyIn} already in your app — skipped.',
@@ -272,7 +274,8 @@ class _PreviewCard extends StatelessWidget {
             ),
           ),
         for (final s in t.sections)
-          Padding(
+          Container(
+            alignment: Alignment.centerLeft,
             padding: EdgeInsets.fromLTRB(bp.hasNav ? 56 : 18, 3, 18, 3),
             child: Text(
               [
