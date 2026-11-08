@@ -5,6 +5,7 @@ import '../config/supabase_config.dart';
 import '../data/seed_loader.dart';
 import '../store/local_store.dart';
 import '../vault/vault_service.dart';
+import 'settings_service.dart';
 import 'sync_service.dart';
 
 /// Wipes everything and returns the app to a fresh-install state.
@@ -24,9 +25,10 @@ import 'sync_service.dart';
 ///     next launch can't merge everything back from it
 ///  4. local DB
 ///  5. seed marker, so the next launch doesn't re-import `seed.json`
-///  6. preferences
+///  6. preferences (and the Keychain-held salary and name)
 class ResetService {
-  ResetService(this.store, this.prefs, this.sync, {required this.vault});
+  ResetService(this.store, this.prefs, this.sync,
+      {required this.vault, this.secure});
 
   final LocalStore store;
   final SharedPreferences prefs;
@@ -36,6 +38,9 @@ class ResetService {
   final SyncService sync;
 
   final VaultService vault;
+
+  /// Salary and name on native (the Keychain), cleared with the prefs.
+  final SecureSettings? secure;
 
   SupabaseClient get _db => Supabase.instance.client;
 
@@ -116,6 +121,7 @@ class ResetService {
     // Salary, budget split, theme, app-lock switch, the monthly-reset marker —
     // all of it. Callers refresh their in-memory copies afterwards.
     await prefs.clear();
+    await secure?.clear();
 
     return ResetReport(
       localItems: localItems,

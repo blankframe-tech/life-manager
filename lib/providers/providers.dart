@@ -29,9 +29,16 @@ final currentTabProvider = StateProvider<String>((ref) => 'home');
 /// The module most recently opened — its home quick tile is shown filled.
 final lastModuleProvider = StateProvider<String?>((ref) => null);
 
+/// Keychain-backed salary and name. Overridden by boot_native; null on web
+/// and in tests, where those settings stay in SharedPreferences.
+final secureSettingsProvider = Provider<SecureSettings?>((ref) => null);
+
 /// Name for the home greeting (Settings → Profile, or onboarding).
 final userNameProvider = StateNotifierProvider<UserNameNotifier, String>(
-  (ref) => UserNameNotifier(ref.watch(sharedPreferencesProvider)),
+  (ref) => UserNameNotifier(
+    ref.watch(sharedPreferencesProvider),
+    ref.watch(secureSettingsProvider),
+  ),
 );
 
 /// First-run onboarding completed?
@@ -108,6 +115,7 @@ final resetServiceProvider = Provider<ResetService>(
     ref.watch(sharedPreferencesProvider),
     ref.watch(syncServiceProvider),
     vault: ref.watch(vaultServiceProvider),
+    secure: ref.watch(secureSettingsProvider),
   ),
 );
 
@@ -134,7 +142,10 @@ final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
 
 /// Monthly take-home used for the budget screen's Needs/Wants/Savings split.
 final monthlySalaryProvider = StateNotifierProvider<SalaryNotifier, double>(
-  (ref) => SalaryNotifier(ref.watch(sharedPreferencesProvider)),
+  (ref) => SalaryNotifier(
+    ref.watch(sharedPreferencesProvider),
+    ref.watch(secureSettingsProvider),
+  ),
 );
 
 /// The target Needs/Wants/Savings split itself — defaults to 65/15/20 but is

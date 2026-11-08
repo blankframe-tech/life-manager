@@ -12,6 +12,7 @@ import '../screens/onboarding_screen.dart';
 import '../services/budget_reset_service.dart';
 import '../services/local_db.dart';
 import '../services/secure_session_storage.dart';
+import '../services/settings_service.dart';
 import '../store/isar_store.dart';
 import '../vault/vault_open_in.dart';
 import '../vault/vault_ui.dart';
@@ -62,6 +63,7 @@ Future<void> boot() async {
   }
 
   final prefs = await SharedPreferences.getInstance();
+  final secure = await SecureSettings.load(prefs, deviceSecureStorage);
 
   // Un-tick any checked-off Needs items on the first launch of a new month.
   await resetNeedsIfNewMonth(store, prefs);
@@ -74,6 +76,7 @@ Future<void> boot() async {
       overrides: [
         storeProvider.overrideWithValue(store),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        secureSettingsProvider.overrideWithValue(secure),
       ],
       child: nativeApp(),
     ),

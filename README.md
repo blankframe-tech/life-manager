@@ -47,8 +47,10 @@ background worker mirrors it to Supabase.
   in the browser and nothing is stored on a server or in the browser. Build,
   hosting, threat model and guardrails: [docs/WEB.md](docs/WEB.md).
 - **Where data lives on iOS.** The Isar DB is in Library/Application Support
-  (excluded from backups; moved there from Documents on first V2 launch).
-  Documents, which Files shows, holds only the encrypted vault.
+  (excluded from backups, marked at launch and whenever the app goes to the
+  background; moved there from Documents on first V2 launch). Documents,
+  which Files shows, holds only the encrypted vault. Salary and name are in
+  the Keychain (this device only), not in backed-up preferences.
 - **Design.** Warm cream and forest green, light and dark palettes, bundled
   DM Sans + Newsreader fonts (SIL OFL, in `assets/fonts/`). Home has a
   greeting, quick tiles and module cards, and each module has an intro page.

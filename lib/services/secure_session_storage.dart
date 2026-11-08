@@ -27,14 +27,15 @@ const _macOptions = MacOsOptions(
   synchronizable: false,
 );
 
-/// Shared handle — `flutter_secure_storage` defaults to AES-GCM data
-/// encryption under an RSA-OAEP Keystore-wrapped key on Android, which is
-/// already what we want, so only the Apple options need overriding.
+/// Shared handle, also used for the salary and name (`SecureSettings`).
+/// `flutter_secure_storage` defaults to AES-GCM data encryption under an
+/// RSA-OAEP Keystore-wrapped key on Android, which is already what we want,
+/// so only the Apple options need overriding.
 ///
 /// Pinned to the 10.x line deliberately: 11.0.0 requires `compileSdk = 37`,
 /// which this project's Android Gradle Plugin doesn't support yet. The Android
 /// cipher defaults are identical between the two.
-const _secure = FlutterSecureStorage(
+const deviceSecureStorage = FlutterSecureStorage(
   iOptions: _appleOptions,
   mOptions: _macOptions,
 );
@@ -60,8 +61,8 @@ class SecureLocalStorage extends LocalStorage {
       final legacy = prefs.getString(persistSessionKey);
       if (legacy == null) return;
       // Only overwrite if we don't already hold a (newer) secure copy.
-      if (await _secure.read(key: persistSessionKey) == null) {
-        await _secure.write(key: persistSessionKey, value: legacy);
+      if (await deviceSecureStorage.read(key: persistSessionKey) == null) {
+        await deviceSecureStorage.write(key: persistSessionKey, value: legacy);
       }
       await prefs.remove(persistSessionKey);
     } catch (_) {
@@ -72,32 +73,32 @@ class SecureLocalStorage extends LocalStorage {
 
   @override
   Future<bool> hasAccessToken() =>
-      _secure.containsKey(key: persistSessionKey);
+      deviceSecureStorage.containsKey(key: persistSessionKey);
 
   @override
-  Future<String?> accessToken() => _secure.read(key: persistSessionKey);
+  Future<String?> accessToken() => deviceSecureStorage.read(key: persistSessionKey);
 
   @override
   Future<void> removePersistedSession() =>
-      _secure.delete(key: persistSessionKey);
+      deviceSecureStorage.delete(key: persistSessionKey);
 
   @override
   Future<void> persistSession(String persistSessionString) =>
-      _secure.write(key: persistSessionKey, value: persistSessionString);
+      deviceSecureStorage.write(key: persistSessionKey, value: persistSessionString);
 }
 
 /// Secure equivalent of `SharedPreferencesGotrueAsyncStorage` — holds the PKCE
 /// code verifier, which is short-lived but still a credential in flight.
 class SecureGotrueAsyncStorage extends GotrueAsyncStorage {
   @override
-  Future<String?> getItem({required String key}) => _secure.read(key: key);
+  Future<String?> getItem({required String key}) => deviceSecureStorage.read(key: key);
 
   @override
   Future<void> setItem({required String key, required String value}) =>
-      _secure.write(key: key, value: value);
+      deviceSecureStorage.write(key: key, value: value);
 
   @override
-  Future<void> removeItem({required String key}) => _secure.delete(key: key);
+  Future<void> removeItem({required String key}) => deviceSecureStorage.delete(key: key);
 }
 
 /// The key `supabase_flutter` derives internally — mirrored here so a session
