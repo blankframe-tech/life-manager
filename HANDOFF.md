@@ -1,7 +1,7 @@
 # Handoff — Life Manager (2026-08-11)
 
-> **Current state: branch `V2` (2026-10-24).** Read this section first; the
-> dated notes below it are history from `main` and V1.
+> **Current state: V2 plus the web build, on `main` (2026-11-08).** Read this
+> section first; the dated notes below it are history from V1.
 
 ## V2 at a glance
 
@@ -32,7 +32,7 @@
   only the encrypted vault: never write plaintext there.
 - **Verify:** `scripts/check.sh` (0 analyze issues, all tests) and
   `flutter build ios --simulator --no-codesign`.
-- **Web (branch `V2-web`).** A static Flutter web build opens the vault in
+- **Web.** A static Flutter web build opens the vault in
   the browser (WebCrypto), edits it in memory, and syncs by writing back
   (Chrome) or downloading (Safari / Firefox). Items and history go through
   `LocalStore` (`lib/store/`): Isar on iOS, memory on the web. Everything
