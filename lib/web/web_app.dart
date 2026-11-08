@@ -43,8 +43,8 @@ class _WebAppState extends State<WebApp> {
     super.initState();
     guardUnload(() => _vault?.dirty.value ?? false);
     onVisibilityChange((visible) {
-      _policy?.visibilityChanged(visible: visible);
-      _check();
+      final reason = _policy?.visibilityChanged(visible: visible);
+      if (reason != null) unawaited(lock(reason));
     });
     HardwareKeyboard.instance.addHandler(_onKey);
   }

@@ -14,12 +14,26 @@ import 'web_vault.dart';
 /// The web "login": pick the `.lmvault` file and enter its passphrase, or
 /// start a new vault. Decryption happens here, in the browser.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.onUnlocked, this.notice});
+  const LoginScreen({
+    super.key,
+    required this.onUnlocked,
+    this.notice,
+    @visibleForTesting this.secureContext,
+  });
+
+  /// Shown instead of opening or creating a vault on an insecure origin.
+  static const insecureMessage =
+      "This page isn't served over HTTPS, so it won't open or create a "
+      'vault: anyone on the network could have changed it to steal your '
+      'passphrase. Open it from an https:// address (or localhost).';
 
   final void Function(WebVault vault) onUnlocked;
 
   /// Shown above the form, e.g. why the vault locked itself.
   final String? notice;
+
+  /// Overrides [isSecureContext] in tests.
+  final bool? secureContext;
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -39,9 +53,19 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _pickedName;
   Timer? _tick;
 
+  bool get _secure => widget.secureContext ?? isSecureContext;
+
+  /// Sets the refusal as the error and returns false on an insecure origin.
+  bool _checkSecure() {
+    if (_secure) return true;
+    setState(() => _error = LoginScreen.insecureMessage);
+    return false;
+  }
+
   @override
   void initState() {
     super.initState();
+    if (!_secure) _error = LoginScreen.insecureMessage;
     _startTick();
   }
 
@@ -83,6 +107,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _open() async {
+    if (!_checkSecure()) return;
     final picked = _picked;
     if (picked == null) {
       setState(() => _error = 'Choose your vault file first.');
@@ -120,6 +145,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _create() async {
+    if (!_checkSecure()) return;
     final p = _pass.text;
     if (p.length < WebVault.minPassphraseLength) {
       setState(

@@ -41,31 +41,58 @@ browser glue, guardrails), `lib/store/memory_store.dart` (the store).
 
 ```bash
 flutter pub get
-flutter build web --release --no-web-resources-cdn --csp --no-wasm-dry-run
+scripts/build_web.sh        # add --base-href /life-manager/ for a sub-path
 ```
+
+Always build a copy you will host with `scripts/build_web.sh`. It runs
+`flutter build web --release --no-web-resources-cdn --csp --no-wasm-dry-run`,
+but first refuses to build while `assets/seed/seed.json` exists, and checks
+afterwards that `build/web/` holds no `seed.json`. The pubspec bundles the
+whole `assets/seed/` folder (the iPhone seeder reads it), so a personal seed
+file would otherwise be published in plaintext next to the app.
 
 - `--no-web-resources-cdn` serves CanvasKit from `build/web/canvaskit/`
   instead of `gstatic.com`. Without it the CSP blocks the renderer.
 - `--csp` keeps dart2js output free of `eval`.
 - Output: `build/web/`. Try it locally with
   `cd build/web && python3 -m http.server 8000`, then open
-  `http://localhost:8000` (WebCrypto needs `localhost` or HTTPS).
+  `http://localhost:8000`. The login screen refuses to open or create a
+  vault outside a secure context (HTTPS or `localhost`), so a LAN address
+  such as `http://192.168.x.x:8000` shows that refusal instead.
 
 Tests:
 
 ```bash
 scripts/check.sh                                   # VM: analyze + all tests
 flutter test --platform chrome test/web/vault_codec_browser_test.dart \
-  test/web/guards_test.dart test/store             # WebCrypto, web models
+  test/web/guards_test.dart test/web/login_screen_test.dart \
+  test/store                                       # WebCrypto, web models
 ```
 
 ## Host it
 
-Copy `build/web/` to any static host: GitHub Pages, Netlify, S3, a USB
-stick with a local server. Since the server only hands out the app's code,
-any static host works. Use HTTPS (WebCrypto and the File System Access API
-need a secure context). For a sub-path such as GitHub Pages project sites,
-build with `--base-href /life-manager/`.
+Copy `build/web/` (from `scripts/build_web.sh`) to a static host that
+serves HTTPS and lets you set response headers, for example Netlify,
+Cloudflare Pages or S3 behind CloudFront. The server only hands out the
+app's code, but it must send these headers on every response:
+
+```
+Content-Security-Policy: frame-ancestors 'none'
+X-Content-Type-Options: nosniff
+Strict-Transport-Security: max-age=31536000
+```
+
+- `frame-ancestors 'none'` stops other sites framing the vault
+  (clickjacking). Browsers ignore `frame-ancestors` in the `<meta>` CSP in
+  `web/index.html`, so only the header works.
+- `nosniff` stops a browser treating a file as a different type.
+- `Strict-Transport-Security` keeps browsers on HTTPS after the first visit.
+
+A host that can't send these headers (plain GitHub Pages, for example) is
+not suitable. HTTPS is required: the app refuses to open or create a vault
+on an insecure origin. Use an origin of its own (its own domain or
+subdomain), not a path under a site that hosts other apps. For a sub-path,
+build with `scripts/build_web.sh --base-href /life-manager/`.
 
 Nothing is deployed from this repo.
 
@@ -110,10 +137,12 @@ What it does not protect against:
 | Login screen: logo, "Open your vault", file picker, passphrase, "Create a new vault" with confirm and a 10-character minimum | `lib/web/login_screen.dart` |
 | Privacy note: "Your data never leaves this browser except as the encrypted file you save." | login screen, Settings → Storage |
 | Wrong passphrase: exponential backoff, 1 s doubling to 5 min, field cleared. The comment says honestly that the KDF is the real defence | `PassphraseThrottle`, `lib/web/guards.dart` |
-| Auto-lock: 10 min idle, 5 min hidden. Lock drops the key, the passphrase and the in-memory store, disposes every provider (a new `ProviderScope` per session) and returns to login. An auto-lock with unsynced changes saves first (in place if the browser already allows it, else an encrypted download) | `AutoLockPolicy`, `lib/web/web_app.dart` |
+| Auto-lock: 10 min idle, 5 min hidden. Also checked the moment the tab becomes visible again, so a tab the browser suspended in the background (no timer ticks) still locks on return. Lock drops the key, the passphrase and the in-memory store, disposes every provider (a new `ProviderScope` per session) and returns to login. An auto-lock with unsynced changes saves first (in place if the browser already allows it, else an encrypted download) | `AutoLockPolicy`, `lib/web/web_app.dart` |
 | Lock button in the top bar. With unsynced changes it asks: Sync and lock / Lock without syncing / Cancel | `lib/web/web_app.dart` |
 | Unsynced changes: red badge and a Sync button in the top bar; `beforeunload` warns before closing or reloading | `lib/web/web_app.dart`, `guardUnload` in `lib/web/browser.dart` |
 | Nothing in localStorage, sessionStorage, IndexedDB, cookies or the URL. Preferences use an in-memory store (`InMemorySharedPreferencesStore`), so the shared_preferences web plugin never writes localStorage | `lib/boot/boot_web.dart`; checked by `test/web/no_browser_storage_test.dart` (greps the web sources) and by the e2e run (checks the live page) |
+| Secure context only: on plain HTTP (anything but HTTPS or `localhost`) the login screen refuses to open or create a vault and says why | `isSecureContext` in `lib/web/browser.dart`, `lib/web/login_screen.dart` |
+| Hosting build refuses to run while `assets/seed/seed.json` exists and checks the output has none | `scripts/build_web.sh` |
 | Strict CSP meta (`default-src 'self'`, `script-src 'self' 'wasm-unsafe-eval'`, `connect-src 'self' blob:`, `object-src 'none'`, `form-action 'none'`, `base-uri 'self'`) and `referrer: no-referrer` | `web/index.html` |
 | No third-party requests: CanvasKit local, app fonts bundled, the fallback font subsets the UI needs (taka sign, symbols, emoji) self-hosted in `web/fonts/fallback/` (OFL, see `LICENSES.txt`), no service worker, no analytics | `web/flutter_bootstrap.js`, `web/fonts/` |
 | Remote `<script>` injection dropped: google_sign_in's web part (needed on iOS) injects Google's GIS script at startup; `web/no_remote_scripts.js` drops any cross-origin script before the browser fetches it (the CSP would block it anyway) | `web/no_remote_scripts.js` |

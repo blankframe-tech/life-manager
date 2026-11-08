@@ -64,8 +64,13 @@ class AutoLockPolicy {
 
   void activity() => _lastActive = _now();
 
-  void visibilityChanged({required bool visible}) =>
-      _hiddenSince = visible ? null : (_hiddenSince ?? _now());
+  /// Records a visibility change and returns [due] as it stood just before,
+  /// so a tab that got no timer tick while hidden still locks on return.
+  LockReason? visibilityChanged({required bool visible}) {
+    final reason = due();
+    _hiddenSince = visible ? null : (_hiddenSince ?? _now());
+    return reason;
+  }
 
   /// Non-null when the session should lock now. Background tabs throttle
   /// timers, so this compares timestamps rather than counting ticks.
