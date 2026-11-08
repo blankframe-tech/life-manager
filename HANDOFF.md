@@ -374,7 +374,12 @@ read back with `fromMap()`. There is deliberately no second definition of
 ```
 
 Deleted items (`is_deleted`) and the full history log are both included —
-dropping tombstones would resurrect deleted items on the next import.
+dropping tombstones would resurrect deleted items on the next import. A
+tombstone carries no content: `SyncService.delete` writes a copy with title,
+note, amount, direction, category, section and due date cleared, and blanks
+the title of that item's earlier history events (locally only; the cloud log
+has no update policy). Swipe-to-delete's Undo restores from the row the
+screen still holds. History shows such events as "Deleted an entry".
 
 **Export** writes to the **temporary** directory, not Documents, then hands the
 file to the share sheet (Save to Files / AirDrop / mail). That's on purpose:

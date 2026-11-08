@@ -65,8 +65,10 @@ background worker mirrors it to Supabase.
   `isar` 3.1.0 ships a 2023-era analyzer that can't parse Dart 3.12; the fork is
   a drop-in with the same API).
 - **Cloud:** Supabase — a single `items` table backs every screen. Deletes
-  are soft (tombstones) so they propagate. Conflicts resolve last-write-wins on
-  `updated_at`.
+  are soft (tombstones) so they propagate. A tombstone keeps only `uuid`,
+  `kind`, `updated_at` and `is_deleted`; the title, note, amount and other
+  content are cleared, and earlier activity-log entries for it lose their
+  title. Conflicts resolve last-write-wins on `updated_at`.
 - **State:** Riverpod. Each screen is a filtered stream over the one collection.
 - **Offline:** with no Supabase keys the app is a fully working local tracker;
   add keys later and it starts syncing.
