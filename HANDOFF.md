@@ -159,7 +159,7 @@ It's a plain log of money in and out — deliberately separate from Budget (a
 ## Auth setup — done (2026-08-11)
 
 Google Sign-In is live and verified end-to-end on the iOS simulator
-(`the.abraar.rar@gmail.com`), and the RLS/history_events migration has been
+(`<owner-email>`), and the RLS/history_events migration has been
 run against the real, live Supabase project. What actually happened,
 including two things not covered by the original plan:
 
@@ -167,9 +167,9 @@ including two things not covered by the original plan:
    planned (Web + iOS + Android client IDs, OAuth consent screen in Testing
    mode, no Firebase). Web client ID is `GOOGLE_SERVER_CLIENT_ID` in `.env`.
 2. **`.env` pointed at the wrong Supabase project initially** — it had
-   `SUPABASE_URL=https://snuyfoaigowarifbaqdk.supabase.co`, a project that
+   `SUPABASE_URL=https://<old-wrong-project-ref>.supabase.co`, a project that
    doesn't exist in this account. Corrected to the real, live project
-   (`utsbjdmhdfcdidlqurdl`) — check `.env` matches the project you see in
+   (`<project-ref>`) — check `.env` matches the project you see in
    the Supabase dashboard before assuming anything is misconfigured.
 3. **iOS needed two fixes beyond the Web/iOS/Android client IDs above:**
    - `ios/Runner/Info.plist` needs `GIDClientID` (the iOS client ID) and a
@@ -261,14 +261,17 @@ there's no forced re-login.
    `supabase/restrict_signups.sql` run against the live project. The script is
    idempotent and safe to re-run.
 
-   The allowlist holds **two** addresses. `restrict_signups.sql` only seeds
-   `the.abraar.rar@gmail.com`; `abraar.ai.dev@gmail.com` was added by hand
-   afterwards, because the script's own verification query flagged it as an
-   existing account that was not on the list. That account owns no rows
-   (0 items, 0 history events, one sign-in at creation) — the real data lives
-   under `the.abraar.rar@gmail.com` (83 items, 9 history events). **If you
-   ever re-run the script on a fresh project, it will not recreate the second
-   entry.**
+   The allowlist holds **two** addresses: `<owner-email>` and
+   `<second-test-email>`. The second was added after the script's own
+   verification query flagged it as an existing account that was not on the
+   list. That account owns no rows (0 items, 0 history events, one sign-in at
+   creation) — the real data lives under `<owner-email>` (83 items, 9 history
+   events). The real addresses are not in the repo: `restrict_signups.sql`
+   seeds nothing, and the insert lives in the gitignored
+   `supabase/allowlist.local.sql`, which you run after the script. **On a
+   fresh project, create that file first or nobody can sign up.**
+   `scripts/check.sh` fails if a Gmail address or a Supabase project URL is
+   committed.
 
    The trigger was tested both ways inside a self-rolling-back `DO` block:
    a non-allowlisted address was rejected with `check_violation`, an
