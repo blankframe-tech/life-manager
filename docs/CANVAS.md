@@ -63,6 +63,10 @@ Everything runs on the phone. No model, no network.
   renames) are a single `CanvasText` row in Isar, which is excluded from
   backups (`lib/models/canvas_text.dart`). A launch joins the two; a state
   saved by an older build is split on its first load.
+- Saves are queued as async Isar writes (so they wait behind any other write
+  in progress), and prefs change only after the words are stored. A failed
+  write is logged and keeps the last saved state; an unreadable DB at launch
+  shows the classic layout for that launch.
 
 ### Rows are ordinary items
 

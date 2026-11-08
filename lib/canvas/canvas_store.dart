@@ -16,7 +16,10 @@
 // words in it (file names, headings, renames) go to [CanvasTextStore], which
 // the app backs with the Isar DB.
 
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar_community/isar.dart';
@@ -118,7 +121,7 @@ class CanvasTextStore {
   String? read() => _json;
 
   /// Null forgets them.
-  void write(String? json) => _json = json;
+  Future<void> write(String? json) async => _json = json;
 }
 
 /// [CanvasTextStore] in the Isar DB, which is excluded from iOS backups.
@@ -129,12 +132,14 @@ class IsarCanvasText extends CanvasTextStore {
   @override
   String? read() => isar.canvasTexts.getSync(0)?.json;
 
+  // Async, not writeTxnSync: a sync write throws while any other async write
+  // is running. Isar runs async writes in the order they were queued.
   @override
-  void write(String? json) => isar.writeTxnSync(
-    () => json == null
-        ? isar.canvasTexts.deleteSync(0)
-        : isar.canvasTexts.putSync(CanvasText()..json = json),
-  );
+  Future<void> write(String? json) => isar.writeTxn(() async {
+    json == null
+        ? await isar.canvasTexts.delete(0)
+        : await isar.canvasTexts.put(CanvasText()..json = json);
+  });
 }
 
 /// Moves the user's words out of a [CanvasState.toJson] map, in place:
@@ -239,17 +244,30 @@ class CanvasNotifier extends StateNotifier<CanvasState> {
       } else {
         state = loaded;
       }
-    } on FormatException {
-      return;
+    } catch (e) {
+      // A corrupt state or an unreadable DB: the classic layout, nothing lost.
+      debugPrint('canvas: not loaded: $e');
     }
   }
 
   void _save(CanvasState next) {
     state = next;
     final j = next.toJson();
-    final text = _takeText(j);
-    _text.write(jsonEncode(text));
-    _prefs.setString(kCanvasPrefsKey, jsonEncode(j));
+    final text = jsonEncode(_takeText(j));
+    unawaited(_persist(text, jsonEncode(j)));
+  }
+
+  /// Prefs change only after the words are stored, so a failed write keeps
+  /// the last saved state (an older build's still holds its words).
+  Future<void> _persist(String? text, String? shape) async {
+    try {
+      await _text.write(text);
+      shape == null
+          ? await _prefs.remove(kCanvasPrefsKey)
+          : await _prefs.setString(kCanvasPrefsKey, shape);
+    } catch (e) {
+      debugPrint('canvas: not saved: $e');
+    }
   }
 
   /// Compiles the [docs] that are new to the canvas. Saves nothing.
@@ -343,8 +361,7 @@ class CanvasNotifier extends StateNotifier<CanvasState> {
   /// Back to the classic layout. Rows stay; only the shape is forgotten.
   void reset() {
     state = const CanvasState();
-    _prefs.remove(kCanvasPrefsKey);
-    _text.write(null);
+    unawaited(_persist(null, null));
   }
 }
 

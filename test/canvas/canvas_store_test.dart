@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -90,6 +91,24 @@ void main() {
     final b = await fresh({kCanvasPrefsKey: await savedPrefs()});
     expect(b.state.active, isTrue);
     expect(b.state.allSections.map((s) => s.title).toSet(), {'Untitled'});
+  });
+
+  test('a store that fails never breaks loading or saving', () async {
+    final a = await fresh();
+    a.commit(a.preview([const SourceDoc('Keep', keepNote)]));
+    final saved = await savedPrefs();
+    final old = jsonEncode(a.state.toJson());
+
+    text = _BrokenText();
+    final b = await fresh({kCanvasPrefsKey: saved});
+    expect(b.state.active, isFalse); // unreadable words: the classic layout
+    final c = await fresh({kCanvasPrefsKey: old});
+    final id = c.state.allSections.first.id;
+    c.rename(id, 'Still renamed');
+    c.reset();
+    await pumpEventQueue();
+    // Nothing reached the store, so the older build's state stays as it was.
+    expect(await savedPrefs(), old);
   });
 
   test('starts inactive: the classic layout', () async {
@@ -219,6 +238,13 @@ void main() {
   group('IsarCanvasText', () {
     late Isar isar;
     late Directory dir;
+    // Isar runs async write transactions in order, so an empty one waits
+    // for every write queued before it.
+    Future<void> flush() async {
+      await isar.writeTxn(() async {});
+      await pumpEventQueue();
+    }
+
     setUpAll(initIsarForTests);
     setUp(() async {
       dir = Directory.systemTemp.createTempSync('canvas_text');
@@ -237,13 +263,58 @@ void main() {
       text = IsarCanvasText(isar);
       final a = await fresh();
       a.commit(a.preview([const SourceDoc('Keep', keepNote)]));
+      await flush();
       expect(isar.canvasTexts.getSync(0)!.json, contains('Dena paona'));
 
       final b = await fresh({kCanvasPrefsKey: await savedPrefs()});
       expect(b.state.allSections, a.state.allSections);
 
       b.reset();
+      await flush();
       expect(isar.canvasTexts.countSync(), 0);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.containsKey(kCanvasPrefsKey), isFalse);
+    });
+
+    test('a rename while another write runs is saved after it', () async {
+      text = IsarCanvasText(isar);
+      final a = await fresh();
+      a.commit(a.preview([const SourceDoc('Keep', keepNote)]));
+      await flush();
+      final id = a.state.allSections.first.id;
+
+      final release = Completer<void>();
+      final held = isar.writeTxn(() => release.future);
+      a.rename(id, 'Renamed while busy');
+      expect(a.state.overrides[id]!.title, 'Renamed while busy');
+
+      release.complete();
+      await held;
+      await flush();
+      expect(isar.canvasTexts.getSync(0)!.json, contains('Renamed while busy'));
+      expect(await savedPrefs(), isNot(contains('Renamed while busy')));
+    });
+
+    test('an older build\'s state splits while another write runs', () async {
+      text = IsarCanvasText(isar);
+      final a = await fresh();
+      a.commit(a.preview([const SourceDoc('Keep', keepNote)]));
+      await flush();
+      final old = jsonEncode(a.state.toJson());
+      await isar.writeTxn(() => isar.canvasTexts.clear());
+
+      final release = Completer<void>();
+      final held = isar.writeTxn(() => release.future);
+      final b = await fresh({kCanvasPrefsKey: old});
+      expect(b.state.allSections, a.state.allSections);
+      // The words leave prefs only once they are in the DB.
+      expect(await savedPrefs(), contains('Dena paona'));
+
+      release.complete();
+      await held;
+      await flush();
+      expect(isar.canvasTexts.getSync(0)!.json, contains('Dena paona'));
+      expect(await savedPrefs(), isNot(contains('Dena paona')));
     });
   });
 
@@ -285,4 +356,11 @@ void main() {
       expect(soapNow!.isDeleted, isTrue);
     });
   });
+}
+
+class _BrokenText extends CanvasTextStore {
+  @override
+  String? read() => throw StateError('db closed');
+  @override
+  Future<void> write(String? json) async => throw StateError('db closed');
 }
