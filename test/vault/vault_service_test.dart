@@ -150,6 +150,21 @@ void main() {
     expect(await va.unlockFromKeychain(), isFalse);
   });
 
+  test('lock and a passphrase change zero the old key bytes', () async {
+    final (_, va) = await device('a');
+    await va.saveVault(pass);
+    final first = va.debugKey!;
+    expect(first.any((b) => b != 0), isTrue);
+    await va.changePassphrase(pass, 'new pass');
+    expect(first.every((b) => b == 0), isTrue);
+
+    final second = va.debugKey!;
+    expect(second.any((b) => b != 0), isTrue);
+    await va.lock();
+    expect(second.every((b) => b == 0), isTrue);
+    expect(va.debugKey, isNull);
+  });
+
   test('auto-saves after changes once unlocked', () async {
     final (a, va) = await device('a');
     final file = await va.saveVault(pass);

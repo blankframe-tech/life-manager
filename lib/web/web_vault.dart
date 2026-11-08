@@ -94,7 +94,9 @@ class WebVault {
     // Never write a weaker KDF setting than the spec's (test vectors use 1k).
     if (h.iterations != iterations) {
       salt = _bytes(VaultCodec.saltLength);
+      final old = key;
       key = await VaultCodec.deriveKey(passphrase, salt, iterations);
+      old.fillRange(0, old.length, 0);
     }
     return WebVault._(
       store,

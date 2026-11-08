@@ -190,11 +190,12 @@ class VaultService {
   /// Whether a passphrase is remembered in the Keychain.
   Future<bool> get remembered => _keychainHas();
 
-  /// Ends the session: stops auto-save and drops the key from memory.
+  /// Ends the session: stops auto-save and zeroes the key in memory.
   /// [forget] also removes the passphrase from the Keychain.
   Future<void> lock({bool forget = false}) => _serial(() async {
     _stopAutoSave();
-    _passphrase = _salt = _key = null;
+    _wipeKey();
+    _passphrase = _salt = null;
     unlocked.value = false;
     if (forget) await _keychain.delete(key: _keychainKey);
   });
@@ -215,6 +216,15 @@ class VaultService {
     });
   }
 
+  /// The session key, for tests that check it gets zeroed.
+  @visibleForTesting
+  Uint8List? get debugKey => _key;
+
+  void _wipeKey() {
+    _key?.fillRange(0, _key!.length, 0);
+    _key = null;
+  }
+
   void dispose() {
     _stopAutoSave();
     lastSavedAt.dispose();
@@ -233,7 +243,13 @@ class VaultService {
     required bool remember,
   }) async {
     final salt = _randomBytes(VaultCodec.saltLength);
-    _key = await VaultCodec.deriveKeyInBackground(passphrase, salt, iterations);
+    final key = await VaultCodec.deriveKeyInBackground(
+      passphrase,
+      salt,
+      iterations,
+    );
+    _wipeKey(); // the old passphrase's key, after changePassphrase
+    _key = key;
     _salt = salt;
     _passphrase = passphrase;
     unlocked.value = true;
