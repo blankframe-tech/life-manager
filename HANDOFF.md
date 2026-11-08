@@ -22,7 +22,13 @@
     from outside before overwriting it.
   - `vault_ui.dart`: Settings → Data & Vault (`VaultTiles`) and `VaultGate`
     (silent Keychain unlock at launch; the Open vault sheet for files from
-    Files / AirDrop).
+    Files / AirDrop). `openVaultFileFlow` unlocks this phone's own vault
+    first (or sets one up, with the 10-character rule) and only then merges
+    the received file. The received file's passphrase is never made the
+    session passphrase or written to the Keychain (`VaultService.openVault`
+    starts a session only for `Documents/LifeManager.lmvault`), and that
+    sheet has no Remember switch. Files over 64 MB
+    (`VaultService.maxFileBytes`) are refused before they are read.
   - iOS open-in: `VaultOpenIn` in `ios/Runner/AppDelegate.swift` copies the
     opened file out of its security-scoped location and hands the path to
     `lib/vault/vault_open_in.dart`.
@@ -408,9 +414,11 @@ accept that version and below, and refuse anything newer with a clear message.
 Settings → Data → **Delete all data**. `lib/services/reset_service.dart`, with
 the confirmation in `lib/widgets/delete_everything_dialog.dart`.
 
-Wipes items and history from the local DB **and the cloud**, clears every
-preference (salary, split, theme, app lock), and signs out — back to the
-sign-in screen as on a fresh install.
+Wipes items and history from the local DB **and the cloud**, deletes the
+vault file (`Documents/LifeManager.lmvault` and its `.tmp`) and forgets the
+Keychain passphrase, clears every preference (salary, split, theme, app lock),
+and signs out — back to the sign-in screen as on a fresh install. Copies of
+the vault elsewhere (iCloud Drive, a browser) are not touched.
 
 **⚠️ Requires `supabase/allow_history_delete.sql` to have been run.** That
 script adds an owner-scoped DELETE policy to `history_events`, which until now
@@ -427,12 +435,15 @@ Ordering exists to make partial failure impossible:
 1. **cloud history first** — the only delete that can be *refused*, so it fails
    while everything is still intact
 2. cloud items
-3. local DB (`isar.clear()`)
-4. `SeedLoader.markSeeded()` — without it the next launch sees an empty DB,
+3. `VaultService.destroy()` — locks (stopping auto-save, which would otherwise
+   write the emptied DB), forgets the Keychain passphrase and deletes the
+   file, so the next launch can't merge everything back
+4. local DB (`isar.clear()`)
+5. `SeedLoader.markSeeded()` — without it the next launch sees an empty DB,
    calls it a first run, and re-imports `seed.json`, undoing the reset
-5. `prefs.clear()`, then the caller invalidates the preference-backed providers
+6. `prefs.clear()`, then the caller invalidates the preference-backed providers
    so the UI drops to defaults rather than showing stale values
-6. sign out last, since the cloud deletes need the session
+7. sign out last, since the cloud deletes need the session
 
 Refused up front when Supabase is configured but there's no session: wiping
 only the device would be actively misleading, because the next sync pulls it

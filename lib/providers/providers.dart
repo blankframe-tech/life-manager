@@ -15,6 +15,7 @@ import '../services/settings_service.dart';
 import '../services/sync_service.dart';
 import '../services/txn_category_service.dart';
 import '../store/local_store.dart';
+import '../vault/vault_provider.dart';
 
 export '../services/session_controller.dart' show AuthPhase, SessionState;
 
@@ -106,6 +107,7 @@ final resetServiceProvider = Provider<ResetService>(
     ref.watch(storeProvider),
     ref.watch(sharedPreferencesProvider),
     ref.watch(syncServiceProvider),
+    vault: ref.watch(vaultServiceProvider),
   ),
 );
 
