@@ -11,7 +11,10 @@
 //    sections. Cheap, and the edit survives every later re-shape.
 //
 // The raw text is not kept: its rows are already in the database (and so in
-// backups and the encrypted vault), and SharedPreferences is plaintext.
+// the encrypted vault). SharedPreferences is plaintext and iOS backs it up,
+// so it gets only the shape (ids, kinds, order, domains). The user's own
+// words in it (file names, headings, renames) go to [CanvasTextStore], which
+// the app backs with the Isar DB.
 
 import 'dart:convert';
 
@@ -19,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/canvas_text.dart';
 import '../models/item.dart';
 import '../services/sync_service.dart';
 import 'blueprint.dart';
@@ -107,24 +111,145 @@ class CanvasPreview {
       items.where((i) => i.section == sectionId).length;
 }
 
+/// Holds the canvas's own words as JSON. In memory here (tests); the app
+/// uses [IsarCanvasText].
+class CanvasTextStore {
+  String? _json;
+  String? read() => _json;
+
+  /// Null forgets them.
+  void write(String? json) => _json = json;
+}
+
+/// [CanvasTextStore] in the Isar DB, which is excluded from iOS backups.
+class IsarCanvasText extends CanvasTextStore {
+  IsarCanvasText(this.isar);
+  final Isar isar;
+
+  @override
+  String? read() => isar.canvasTexts.getSync(0)?.json;
+
+  @override
+  void write(String? json) => isar.writeTxnSync(
+    () => json == null
+        ? isar.canvasTexts.deleteSync(0)
+        : isar.canvasTexts.putSync(CanvasText()..json = json),
+  );
+}
+
+/// Moves the user's words out of a [CanvasState.toJson] map, in place:
+/// source names, section titles (as compiled and as shown) and renames.
+Map<String, Map<String, String>> _takeText(Map j) {
+  final names = <String, String>{}, titles = <String, String>{};
+  final renames = <String, String>{}, shown = <String, String>{};
+  void blank(Object? s, Map<String, String> into) {
+    if (s is Map && s['id'] is String && s['title'] is String) {
+      into[s['id'] as String] = s['title'] as String;
+      s['title'] = '';
+    }
+  }
+
+  for (final src in _list(j['sources'])) {
+    if (src is! Map) continue;
+    if (src['hash'] is String && src['name'] is String) {
+      names[src['hash'] as String] = src['name'] as String;
+      src['name'] = '';
+    }
+    for (final s in _list(src['sections'])) {
+      blank(s, titles);
+    }
+  }
+  final overrides = j['overrides'];
+  if (overrides is Map) {
+    for (final e in overrides.entries) {
+      final o = e.value;
+      if (o is Map && o['title'] is String && e.key is String) {
+        renames[e.key as String] = o.remove('title') as String;
+      }
+    }
+  }
+  final bp = j['blueprint'];
+  if (bp is Map) {
+    for (final t in _list(bp['tabs'])) {
+      if (t is Map) _list(t['sections']).forEach((s) => blank(s, shown));
+    }
+  }
+  return {'names': names, 'titles': titles, 'renames': renames, 'shown': shown};
+}
+
+/// The inverse of [_takeText]. A word that is missing stays blank, which
+/// [SectionSpec.fromJson] shows as "Untitled".
+void _putText(Map j, Map text) {
+  Map words(String k) => text[k] is Map ? text[k] as Map : const {};
+  final names = words('names'), titles = words('titles');
+  final renames = words('renames'), shown = words('shown');
+  void fill(Object? s, Map from) {
+    if (s is Map && from[s['id']] is String) s['title'] = from[s['id']];
+  }
+
+  for (final src in _list(j['sources'])) {
+    if (src is! Map) continue;
+    if (names[src['hash']] is String) src['name'] = names[src['hash']];
+    _list(src['sections']).forEach((s) => fill(s, titles));
+  }
+  final overrides = j['overrides'];
+  if (overrides is Map) {
+    for (final e in overrides.entries) {
+      if (e.value is Map && renames[e.key] is String) {
+        (e.value as Map)['title'] = renames[e.key];
+      }
+    }
+  }
+  final bp = j['blueprint'];
+  if (bp is Map) {
+    for (final t in _list(bp['tabs'])) {
+      if (t is Map) _list(t['sections']).forEach((s) => fill(s, shown));
+    }
+  }
+}
+
+List<Object?> _list(Object? v) => v is List ? v : const [];
+
 class CanvasNotifier extends StateNotifier<CanvasState> {
-  CanvasNotifier(this._prefs) : super(_load(_prefs));
+  CanvasNotifier(this._prefs, [CanvasTextStore? text])
+    : _text = text ?? CanvasTextStore(),
+      super(const CanvasState()) {
+    _load();
+  }
 
   final SharedPreferences _prefs;
+  final CanvasTextStore _text;
 
-  static CanvasState _load(SharedPreferences prefs) {
-    final raw = prefs.getString(kCanvasPrefsKey);
-    if (raw == null) return const CanvasState();
+  void _load() {
+    final raw = _prefs.getString(kCanvasPrefsKey);
+    if (raw == null) return;
     try {
-      return CanvasState.fromJson(jsonDecode(raw));
+      final j = jsonDecode(raw);
+      if (j is! Map) return;
+      // An older build saved the words in prefs too.
+      final legacy = _takeText(j);
+      final hasLegacy = legacy.values.any(
+        (m) => m.values.any((w) => w.isNotEmpty),
+      );
+      final stored = hasLegacy ? legacy : jsonDecode(_text.read() ?? '{}');
+      _putText(j, stored is Map ? stored : const {});
+      final loaded = CanvasState.fromJson(j);
+      if (hasLegacy) {
+        _save(loaded);
+      } else {
+        state = loaded;
+      }
     } on FormatException {
-      return const CanvasState();
+      return;
     }
   }
 
   void _save(CanvasState next) {
     state = next;
-    _prefs.setString(kCanvasPrefsKey, jsonEncode(next.toJson()));
+    final j = next.toJson();
+    final text = _takeText(j);
+    _text.write(jsonEncode(text));
+    _prefs.setString(kCanvasPrefsKey, jsonEncode(j));
   }
 
   /// Compiles the [docs] that are new to the canvas. Saves nothing.
@@ -219,6 +344,7 @@ class CanvasNotifier extends StateNotifier<CanvasState> {
   void reset() {
     state = const CanvasState();
     _prefs.remove(kCanvasPrefsKey);
+    _text.write(null);
   }
 }
 

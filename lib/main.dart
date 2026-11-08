@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'canvas/canvas_store.dart';
 import 'config/supabase_config.dart';
 import 'data/seed_loader.dart';
 import 'providers/providers.dart';
@@ -84,6 +85,7 @@ Future<void> main() async {
       overrides: [
         isarProvider.overrideWithValue(isar),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        canvasTextProvider.overrideWithValue(IsarCanvasText(isar)),
       ],
       child: const LifeManagerApp(),
     ),
