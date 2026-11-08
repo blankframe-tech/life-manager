@@ -287,6 +287,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Writes a backup and hands it to the system share sheet, which is what
   /// "download" means on a phone — save to Files, AirDrop, mail it to yourself.
   Future<void> _exportData() async {
+    // The export is plaintext: with the app lock on, ask again first.
+    if (ref.read(appLockEnabledProvider) &&
+        !await ref.read(appLockServiceProvider).authenticate()) {
+      if (mounted) _toast('Not exported — the check didn\'t pass');
+      return;
+    }
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
       final file = await ref.read(backupServiceProvider).writeExportFile();
@@ -443,8 +450,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       kDebugMode ? e.toString() : 'please try again';
 
   /// App lock switch. Disabled when the device has no biometrics and no
-  /// passcode, and enabling it requires passing the prompt once — otherwise a
-  /// user could flip it on and be locked out by a sensor that never works.
+  /// passcode. Flipping it either way requires passing the prompt (see
+  /// [_setAppLock]).
   Widget _appLockTile(BuildContext context) {
     final enabled = ref.watch(appLockEnabledProvider);
     final available = ref.watch(appLockAvailableProvider).valueOrNull ?? false;
@@ -463,19 +470,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _setAppLock(bool value) async {
     final notifier = ref.read(appLockEnabledProvider.notifier);
-    if (!value) {
-      // Turning it off is guarded by the lock screen itself — reaching Settings
-      // already required unlocking, so no second prompt here.
-      notifier.set(false);
-      return;
-    }
+    // Both directions need a passing prompt: on, so a sensor that never works
+    // can't lock the user out; off, so a borrowed phone can't drop the lock.
     final ok = await ref.read(appLockServiceProvider).authenticate();
     if (!mounted) return;
     if (ok) {
-      notifier.set(true);
+      notifier.set(value);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Left off — the check didn\'t pass')),
+      _toast(
+        value
+            ? 'Left off — the check didn\'t pass'
+            : 'Left on — the check didn\'t pass',
       );
     }
   }

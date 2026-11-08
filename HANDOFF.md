@@ -224,7 +224,7 @@ keystore is outstanding.
 | 2 | Refresh token in plaintext SharedPreferences | `SecureLocalStorage` / `SecureGotrueAsyncStorage` (`lib/services/secure_session_storage.dart`) move it to Keychain / Keystore, migrating any existing plaintext session on first launch |
 | 3 | Release builds signed with the debug key | `android/app/build.gradle.kts` reads `android/key.properties`; falls back to the debug key with a loud warning |
 | 4 | Backups could copy the DB and token off-device | `allowBackup="false"` + `res/xml/data_extraction_rules.xml` on Android; `excludeLocalDatabaseFromBackup()` in `AppDelegate.swift` for iCloud |
-| 5 | No app lock over an unencrypted local DB | Optional biometric/passcode lock — Settings → Security. Isar 3 has no encryption support, so this is the available mitigation, not a substitute |
+| 5 | No app lock over an unencrypted local DB | Optional biometric/passcode lock — Settings → Security. Isar 3 has no encryption support, so this is the available mitigation, not a substitute. `AppLockGate` wraps the root Navigator (`MaterialApp.builder` in `boot_native.dart`), so pages, dialogs and sheets opened on top are covered too. Turning the lock off and Export data (plaintext JSON) each ask for the prompt again. `SceneDelegate.swift` covers the window natively while the app is inactive, so the App Switcher card shows the launch screen, not data |
 | 6 | Any Google account could sign up | `supabase/restrict_signups.sql` (allowlist + `auth.users` trigger) — **ran 2026-08-11**, plus "Allow new users to sign up" turned off in the dashboard |
 | 7 | Raw exception strings shown in the UI | `describeSyncError` (`sync_service.dart`) and `AuthService.describeAuthError` return summaries; detail only in debug builds |
 | 8 | Seed UUIDs collided across accounts | `SeedLoader` derives its v5 namespace from the owner's user id, keeping per-account determinism |
@@ -488,7 +488,11 @@ provisioning. Clean launch, zero unhandled exceptions.
    already up to date"*, which also proves the merge is idempotent.
 3. **Settings → Security → Require unlock** — the biometric prompt itself can't
    be driven from a test harness. Gate logic has unit coverage
-   (`test/app_lock_test.dart`), the Face ID prompt does not.
+   (`test/app_lock_test.dart`, and `test/widgets/app_lock_gate_test.dart` for
+   the real tree with Settings open), the Face ID prompt does not. On a device:
+   turn the lock on, open Settings, swipe home and open the App Switcher — the
+   card must show the launch screen, not data. Reopen and cancel Face ID — the
+   lock screen must stay, and switching the lock off must ask again.
 
 ### Realtime subscribed with an expired JWT (fixed 2026-08-12)
 
