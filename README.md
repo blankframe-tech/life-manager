@@ -125,6 +125,8 @@ On first launch the app imports `assets/seed/seed.json` if present. That file is
 **git-ignored** (it holds personal data). A fake [`seed.example.json`](assets/seed/seed.example.json)
 is committed to show the shape — copy it to `seed.json` and edit. The seed runs
 once (guarded by a marker) and uses deterministic IDs, so it never duplicates.
+Never host a web build made while `seed.json` exists: build the web app with
+`scripts/build_web.sh`, which refuses to run until the file is moved out.
 
 ## Shipping to real devices
 

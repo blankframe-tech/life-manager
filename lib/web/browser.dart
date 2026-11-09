@@ -30,6 +30,10 @@ extension type _Permissions._(JSObject _) implements JSObject {
   external JSPromise<JSString> requestPermission(JSObject descriptor);
 }
 
+/// HTTPS or localhost. Over plain HTTP anyone on the network could swap in
+/// code that steals the passphrase, so the login screen refuses to unlock.
+bool get isSecureContext => web.window.isSecureContext;
+
 /// Chromium's File System Access API: open, then write back to the same file.
 bool get canWriteInPlace =>
     web.window.has('showOpenFilePicker') &&
