@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Blankframe app icon">
+  <title>Blankframe</title>
+  <rect width="512" height="512" fill="#0F172A"/>
+  <!--
+    One rounded-rect path drawn four times. Each copy reveals a single quarter of
+    the perimeter via stroke-dasharray, coloured with a section accent from
+    lib/theme/app_theme.dart: teal (credit), orange (tasks), pink (dreams),
+    indigo (budget / brand). The centre stays empty — the "blank frame".
+
+    Perimeter: 4 straight runs of 176 (704) + one full r=72 circle (452.39)
+             = 1156.39, so each quarter is 289.10. Dashes are 20 short of a
+    quarter to leave an even gap at every corner.
+  -->
+  <g fill="none" stroke-width="44" stroke-linecap="round">
+    <path d="M168 96 L344 96 A72 72 0 0 1 416 168 L416 344 A72 72 0 0 1 344 416 L168 416 A72 72 0 0 1 96 344 L96 168 A72 72 0 0 1 168 96 Z"
+          stroke="#14B8A6" stroke-dasharray="269.10 887.29" stroke-dashoffset="0"/>
+    <path d="M168 96 L344 96 A72 72 0 0 1 416 168 L416 344 A72 72 0 0 1 344 416 L168 416 A72 72 0 0 1 96 344 L96 168 A72 72 0 0 1 168 96 Z"
+          stroke="#F97316" stroke-dasharray="269.10 887.29" stroke-dashoffset="-289.10"/>
+    <path d="M168 96 L344 96 A72 72 0 0 1 416 168 L416 344 A72 72 0 0 1 344 416 L168 416 A72 72 0 0 1 96 344 L96 168 A72 72 0 0 1 168 96 Z"
+          stroke="#EC4899" stroke-dasharray="269.10 887.29" stroke-dashoffset="-578.20"/>
+    <path d="M168 96 L344 96 A72 72 0 0 1 416 168 L416 344 A72 72 0 0 1 344 416 L168 416 A72 72 0 0 1 96 344 L96 168 A72 72 0 0 1 168 96 Z"
+          stroke="#5B5BD6" stroke-dasharray="269.10 887.29" stroke-dashoffset="-867.29"/>
+  </g>
+</svg>

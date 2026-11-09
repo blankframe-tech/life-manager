@@ -1,3 +1,5 @@
+import '../app_modules.dart' show kCloudSyncEnabled;
+
 /// Supabase connection settings.
 ///
 /// The values are read at build time from `--dart-define` so real keys never
@@ -16,12 +18,31 @@ class SupabaseConfig {
 
   /// The client key — either a modern publishable key (`sb_publishable_…`) or a
   /// legacy anon JWT (`eyJ…`). Both are public, client-safe keys.
-  static const anonKey =
-      String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+  static const anonKey = String.fromEnvironment(
+    'SUPABASE_ANON_KEY',
+    defaultValue: '',
+  );
 
-  /// True only when both values were provided at build time.
-  static bool get isConfigured => url.isNotEmpty && anonKey.isNotEmpty;
+  /// True only when cloud sync is switched on in `lib/app_modules.dart` AND
+  /// both values were provided at build time. Everything cloud-related
+  /// (Supabase init, sign-in gate, sync engine) keys off this one getter.
+  static bool get isConfigured =>
+      kCloudSyncEnabled && url.isNotEmpty && anonKey.isNotEmpty;
 
   /// Modern keys are passed via `publishableKey`; legacy JWTs via `anonKey`.
   static bool get isPublishableKey => anonKey.startsWith('sb_');
+}
+
+/// Google Sign-In settings — the Web OAuth client ID from Google Cloud
+/// Console (see HANDOFF.md for the full setup guide), passed as
+/// `serverClientId` so the ID token's audience matches what Supabase Auth's
+/// Google provider expects, on every platform. Not secret — same
+/// "safe to ship" client ID class as [SupabaseConfig.anonKey].
+class GoogleAuthConfig {
+  static const serverClientId = String.fromEnvironment(
+    'GOOGLE_SERVER_CLIENT_ID',
+    defaultValue: '',
+  );
+
+  static bool get isConfigured => serverClientId.isNotEmpty;
 }

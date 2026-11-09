@@ -6,6 +6,7 @@ Set-Location $PSScriptRoot
 
 $url = ''
 $key = ''
+$googleServerClientId = ''
 if (Test-Path .env) {
   foreach ($line in Get-Content .env) {
     if ($line -match '^\s*#' -or $line -notmatch '=') { continue }
@@ -14,7 +15,8 @@ if (Test-Path .env) {
     $value = $parts[1].Trim()
     if ($name -eq 'SUPABASE_URL') { $url = $value }
     elseif ($name -eq 'SUPABASE_ANON_KEY') { $key = $value }
+    elseif ($name -eq 'GOOGLE_SERVER_CLIENT_ID') { $googleServerClientId = $value }
   }
 }
 
-flutter run --dart-define=SUPABASE_URL=$url --dart-define=SUPABASE_ANON_KEY=$key @args
+flutter run --dart-define=SUPABASE_URL=$url --dart-define=SUPABASE_ANON_KEY=$key --dart-define=GOOGLE_SERVER_CLIENT_ID=$googleServerClientId @args

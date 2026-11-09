@@ -54,3 +54,9 @@ app.*.map.json
 # Local env / secrets
 .env
 *.env.local
+
+# Android release signing — passwords and the upload key itself.
+# `android/key.properties.example` (blank) IS committed; the real one is not.
+/android/key.properties
+*.jks
+*.keystore

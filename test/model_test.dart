@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:life_manager/models/history_event.dart';
 import 'package:life_manager/models/item.dart';
 
 void main() {
@@ -60,6 +61,29 @@ void main() {
       expect(item.dueDate, DateTime.parse('2026-07-23'));
       expect(item.isSynced, isFalse); // must be pushed to the cloud
       expect(item.isDeleted, isFalse);
+    });
+  });
+
+  group('HistoryEvent.toMap / fromMap round-trip', () {
+    test('preserves every field', () {
+      final original = HistoryEvent()
+        ..uuid = 'evt-1'
+        ..itemUuid = 'abc-123'
+        ..itemKind = ItemKind.task
+        ..title = 'Pay rent'
+        ..action = HistoryAction.completed
+        ..timestamp = DateTime.utc(2026, 8, 11, 14, 2);
+
+      final restored = HistoryEvent.fromMap(original.toMap());
+
+      expect(restored.uuid, original.uuid);
+      expect(restored.itemUuid, original.itemUuid);
+      expect(restored.itemKind, ItemKind.task);
+      expect(restored.title, 'Pay rent');
+      expect(restored.action, HistoryAction.completed);
+      expect(restored.timestamp.toUtc(), original.timestamp);
+      // Rows coming back from the cloud are, by definition, already synced.
+      expect(restored.isSynced, isTrue);
     });
   });
 }
