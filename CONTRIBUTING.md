@@ -1,18 +1,17 @@
 # Contributing to Life Manager
 
-Thanks for helping. Active work happens on the **`V2`** branch. `main` is the old V1, so base every branch and pull request on `V2`.
+Thanks for helping. Active work happens on **`main`**, so base every branch and pull request on `main`.
 
 ## Setup
 
 1. Install Flutter (stable) and clone the repo.
-2. `git checkout V2`
-3. `flutter pub get`
-4. `dart run build_runner build --delete-conflicting-outputs` (generates the Isar models)
-5. `flutter run`. No keys are needed: cloud sync is off by default (`kCloudSyncEnabled` in `lib/app_modules.dart`).
+2. `flutter pub get`
+3. `dart run build_runner build --delete-conflicting-outputs` (generates the Isar models)
+4. `flutter run`. No keys are needed: cloud sync is off by default (`kCloudSyncEnabled` in `lib/app_modules.dart`).
 
 ## Checks
 
-Run `scripts/check.sh` before you open a pull request. It runs `flutter analyze` and `flutter test`, and both must pass.
+Run `scripts/check.sh` before you open a pull request. It fails if a personal email or a Supabase project URL is in the tree, then runs `flutter analyze` and `flutter test`; all must pass.
 
 ## Picking an issue
 
@@ -22,7 +21,7 @@ Run `scripts/check.sh` before you open a pull request. It runs `flutter analyze`
 
 ## Pull requests
 
-- One change per pull request, against `V2`, with `Fixes #N` in the description.
+- One change per pull request, against `main`, with `Fixes #N` in the description.
 - Add or update a test for the behaviour you change.
 - Never commit real personal data, keys or a filled-in `.env`.
 - Reviews are best effort.

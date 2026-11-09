@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isar_community/isar.dart';
+import 'package:life_manager/store/isar_store.dart';
 import 'package:life_manager/models/history_event.dart';
 import 'package:life_manager/models/item.dart';
 import 'package:life_manager/vault/vault_codec.dart';
@@ -38,7 +39,7 @@ void main() {
     final isar = await Isar.open([ItemSchema, HistoryEventSchema],
         directory: dir.path, name: 'db${n++}');
     final svc = VaultService(
-      isar,
+      IsarStore(isar),
       prefs: await SharedPreferences.getInstance(),
       documentsDir: () async => dir,
       iterations: 1000, // shortcut: test speed only; app default is 600k
@@ -63,7 +64,8 @@ void main() {
     final report = await vb.openVault(file, pass);
     expect(report.itemsAdded, 1);
     expect((await b.items.where().findAll()).single.title, 'Renew passport');
-    expect(vb.isUnlocked, isTrue);
+    expect(vb.isUnlocked, isFalse,
+        reason: 'another file\'s passphrase never becomes this phone\'s');
   });
 
   test('open with the wrong passphrase fails and imports nothing', () async {
@@ -146,6 +148,21 @@ void main() {
     expect(va.isUnlocked, isTrue);
     await va.lock(forget: true);
     expect(await va.unlockFromKeychain(), isFalse);
+  });
+
+  test('lock and a passphrase change zero the old key bytes', () async {
+    final (_, va) = await device('a');
+    await va.saveVault(pass);
+    final first = va.debugKey!;
+    expect(first.any((b) => b != 0), isTrue);
+    await va.changePassphrase(pass, 'new pass');
+    expect(first.every((b) => b == 0), isTrue);
+
+    final second = va.debugKey!;
+    expect(second.any((b) => b != 0), isTrue);
+    await va.lock();
+    expect(second.every((b) => b == 0), isTrue);
+    expect(va.debugKey, isNull);
   });
 
   test('auto-saves after changes once unlocked', () async {

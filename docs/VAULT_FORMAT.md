@@ -95,7 +95,11 @@ UTF-8 JSON, identical to the app's JSON backup export
 
 Merge rules (what the app does on open, and what a web editor must do too):
 items are last-write-wins on `updated_at`; deleted items stay as tombstones
-(`is_deleted: true`) and must not be dropped; history entries are insert-only,
+(`is_deleted: true`) and must not be dropped. A tombstone keeps `uuid`, `kind`,
+`updated_at` and `is_deleted` and clears the rest (`title` and `note` empty,
+`amount`, `direction`, `category`, `section` and `due_date` null); an editor
+that deletes an item should do the same, and blank the `title` of that item's
+history entries; history entries are insert-only,
 keyed by `uuid`. An editor that changes an item must set its `updated_at` to
 the current UTC time.
 

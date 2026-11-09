@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/history_event.dart';
 import '../models/item.dart';
+import '../store/local_store.dart';
 
 /// Export / import of everything the app holds, as a single JSON file.
 ///
@@ -17,9 +17,9 @@ import '../models/item.dart';
 /// backup that dropped them would resurrect deleted items on import and lose
 /// the activity trail.
 class BackupService {
-  BackupService(this.isar);
+  BackupService(this.store);
 
-  final Isar isar;
+  final LocalStore store;
 
   /// Bumped only if the shape changes incompatibly. [importJson] accepts this
   /// version and below.
@@ -28,8 +28,8 @@ class BackupService {
 
   /// Everything in the local DB as pretty-printed JSON.
   Future<String> buildJson() async {
-    final items = await isar.items.where().findAll();
-    final history = await isar.historyEvents.where().sortByTimestamp().findAll();
+    final items = await store.items();
+    final history = await store.history();
     return const JsonEncoder.withIndent('  ').convert({
       'format': formatName,
       'version': formatVersion,
@@ -136,53 +136,57 @@ class BackupService {
     var historyAdded = 0;
     var malformed = 0;
 
-    await isar.writeTxn(() async {
-      for (final row in rawItems as List) {
-        Item incoming;
+    // Decide against a snapshot, then write once. Keyed by uuid so a row that
+    // appears twice in one file is compared against its own earlier copy.
+    final local = {for (final i in await store.items()) i.uuid: i};
+    final changed = <String, Item>{};
+    for (final row in rawItems as List) {
+      Item incoming;
+      try {
+        incoming = Item.fromMap(Map<String, dynamic>.from(row as Map));
+      } catch (_) {
+        // One bad row shouldn't abort a 500-row restore.
+        malformed++;
+        continue;
+      }
+      incoming.isSynced = false;
+      final existing = local[incoming.uuid];
+      if (existing == null) {
+        added++;
+      } else if (existing.updatedAt.isBefore(incoming.updatedAt)) {
+        incoming.id = existing.id;
+        updated++;
+      } else {
+        skipped++;
+        continue;
+      }
+      local[incoming.uuid] = incoming;
+      changed[incoming.uuid] = incoming;
+    }
+
+    final knownHistory = {for (final h in await store.history()) h.uuid};
+    final newHistory = <HistoryEvent>[];
+    if (rawHistory is List) {
+      for (final row in rawHistory) {
+        HistoryEvent incoming;
         try {
-          incoming = Item.fromMap(Map<String, dynamic>.from(row as Map));
+          incoming = HistoryEvent.fromMap(
+            Map<String, dynamic>.from(row as Map),
+          );
         } catch (_) {
-          // One bad row shouldn't abort a 500-row restore.
           malformed++;
           continue;
         }
         incoming.isSynced = false;
-        final local =
-            await isar.items.filter().uuidEqualTo(incoming.uuid).findFirst();
-        if (local == null) {
-          await isar.items.put(incoming);
-          added++;
-        } else if (local.updatedAt.isBefore(incoming.updatedAt)) {
-          incoming.id = local.id;
-          await isar.items.put(incoming);
-          updated++;
-        } else {
-          skipped++;
+        if (knownHistory.add(incoming.uuid)) {
+          newHistory.add(incoming);
+          historyAdded++;
         }
       }
+    }
 
-      if (rawHistory is List) {
-        for (final row in rawHistory) {
-          HistoryEvent incoming;
-          try {
-            incoming =
-                HistoryEvent.fromMap(Map<String, dynamic>.from(row as Map));
-          } catch (_) {
-            malformed++;
-            continue;
-          }
-          incoming.isSynced = false;
-          final exists = await isar.historyEvents
-              .filter()
-              .uuidEqualTo(incoming.uuid)
-              .findFirst();
-          if (exists == null) {
-            await isar.historyEvents.put(incoming);
-            historyAdded++;
-          }
-        }
-      }
-    });
+    if (changed.isNotEmpty) await store.putItems(changed.values);
+    if (newHistory.isNotEmpty) await store.putHistory(newHistory);
 
     return ImportReport(
       itemsAdded: added,

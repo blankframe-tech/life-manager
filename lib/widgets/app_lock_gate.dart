@@ -7,9 +7,12 @@ import 'leaf_mark.dart';
 
 /// Wraps the app in a biometric lock when the user has enabled it in Settings.
 ///
-/// Locks on launch and again whenever the app leaves the foreground, so the
-/// data isn't sitting visible in the app switcher's snapshot or on a handed-over
-/// phone. When the lock is disabled (the default) this is a pass-through.
+/// Sits above the root Navigator (`MaterialApp.builder`), so every pushed page,
+/// dialog and sheet is covered. Locks on launch and again whenever the app
+/// leaves the foreground, so a handed-over phone shows the lock screen. The app
+/// switcher snapshot is taken before Flutter can draw that frame, so iOS hides
+/// it natively (ios/Runner/SceneDelegate.swift). When the lock is disabled (the
+/// default) this is a pass-through.
 class AppLockGate extends ConsumerStatefulWidget {
   const AppLockGate({super.key, required this.child});
 
@@ -48,8 +51,7 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!ref.read(appLockEnabledProvider)) return;
     // `paused` covers backgrounding; `hidden` fires first on newer engines.
-    // Re-lock on the way out rather than on the way back in, so the snapshot
-    // the OS takes for the app switcher shows the lock screen, not the data.
+    // Not `inactive`: that also fires while the Face ID sheet itself is up.
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
       if (!_prompting && !_locked) {
@@ -72,13 +74,28 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
     });
   }
 
+  /// Keeps [widget.child] (the whole Navigator) mounted under the lock screen,
+  /// so open pages and unsaved editors survive a re-lock, but not painted,
+  /// focusable or tappable while [covered].
+  Widget _guard(BuildContext context, {bool covered = false, bool? canPrompt}) {
+    return Stack(
+      children: [
+        Offstage(
+          offstage: covered,
+          child: ExcludeFocus(excluding: covered, child: widget.child),
+        ),
+        if (covered) _lockScreen(context, canPrompt: canPrompt ?? false),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final enabled = ref.watch(appLockEnabledProvider);
     if (!enabled) {
       // Setting turned off (now or at launch) — nothing to guard.
       if (_locked) _locked = false;
-      return widget.child;
+      return _guard(context);
     }
 
     // The lock is on — but is the device still able to satisfy it? Biometrics
@@ -96,12 +113,12 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) ref.read(appLockEnabledProvider.notifier).set(false);
       });
-      return widget.child;
+      return _guard(context);
     }
     // Still resolving — hold on the lock screen rather than flashing content.
-    if (available == null) return _lockScreen(context, canPrompt: false);
+    if (available == null) return _guard(context, covered: true);
 
-    if (!_locked) return widget.child;
+    if (!_locked) return _guard(context);
 
     // Prompt once, as soon as the lock screen is on-screen, without blocking
     // build. After that it's on the Unlock button — see [_autoPrompted].
@@ -112,9 +129,11 @@ class _AppLockGateState extends ConsumerState<AppLockGate>
       });
     }
 
-    return _lockScreen(context, canPrompt: true);
+    return _guard(context, covered: true, canPrompt: true);
   }
 
+  /// No Navigator sits above this widget: never call Navigator.of or
+  /// showDialog from the lock screen.
   Widget _lockScreen(BuildContext context, {required bool canPrompt}) {
     return Scaffold(
       body: SafeArea(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../app_modules.dart';
@@ -15,6 +14,8 @@ import '../services/session_controller.dart';
 import '../services/settings_service.dart';
 import '../services/sync_service.dart';
 import '../services/txn_category_service.dart';
+import '../store/local_store.dart';
+import '../vault/vault_provider.dart';
 
 export '../services/session_controller.dart' show AuthPhase, SessionState;
 
@@ -28,9 +29,16 @@ final currentTabProvider = StateProvider<String>((ref) => 'home');
 /// The module most recently opened — its home quick tile is shown filled.
 final lastModuleProvider = StateProvider<String?>((ref) => null);
 
+/// Keychain-backed salary and name. Overridden by boot_native; null on web
+/// and in tests, where those settings stay in SharedPreferences.
+final secureSettingsProvider = Provider<SecureSettings?>((ref) => null);
+
 /// Name for the home greeting (Settings → Profile, or onboarding).
 final userNameProvider = StateNotifierProvider<UserNameNotifier, String>(
-  (ref) => UserNameNotifier(ref.watch(sharedPreferencesProvider)),
+  (ref) => UserNameNotifier(
+    ref.watch(sharedPreferencesProvider),
+    ref.watch(secureSettingsProvider),
+  ),
 );
 
 /// First-run onboarding completed?
@@ -43,17 +51,24 @@ final introSeenProvider = StateNotifierProvider<IntroSeenNotifier, Set<String>>(
   (ref) => IntroSeenNotifier(ref.watch(sharedPreferencesProvider)),
 );
 
-/// The open Isar instance — overridden in `main()` after the DB opens.
-final isarProvider = Provider<Isar>((ref) => throw UnimplementedError());
+/// Where items and history live — overridden at startup: Isar on iOS /
+/// Android, memory on the web. See [LocalStore].
+final storeProvider = Provider<LocalStore>(
+  (ref) => throw UnimplementedError(),
+);
 
 /// The opened SharedPreferences instance — overridden in `main()`.
 final sharedPreferencesProvider = Provider<SharedPreferences>(
   (ref) => throw UnimplementedError(),
 );
 
+/// Settings → Data & Vault rows on the web (sync, lock, the open file). Null
+/// on iOS / Android, which show export, import, the vault and reset instead.
+final platformDataTilesProvider = Provider<List<Widget>?>((ref) => null);
+
 /// The offline-first sync engine.
 final syncServiceProvider = Provider<SyncService>((ref) {
-  final svc = SyncService(ref.watch(isarProvider));
+  final svc = SyncService(ref.watch(storeProvider));
   ref.onDispose(svc.dispose);
   return svc;
 });
@@ -74,24 +89,14 @@ final sessionProvider = StateNotifierProvider<SessionController, SessionState>(
 );
 
 /// Reactive, sorted stream of the live (non-deleted) items for one section.
-final itemsProvider = StreamProvider.family<List<Item>, String>((ref, kind) {
-  final isar = ref.watch(isarProvider);
-  return isar.items
-      .filter()
-      .kindEqualTo(kind)
-      .isDeletedEqualTo(false)
-      .sortBySortOrder()
-      .thenByUpdatedAtDesc()
-      .watch(fireImmediately: true);
-});
+final itemsProvider = StreamProvider.family<List<Item>, String>(
+  (ref, kind) => ref.watch(storeProvider).watchItems(kind),
+);
 
 /// Every logged action (add/edit/complete/delete), newest first.
-final historyProvider = StreamProvider<List<HistoryEvent>>((ref) {
-  final isar = ref.watch(isarProvider);
-  return isar.historyEvents.where().sortByTimestampDesc().watch(
-    fireImmediately: true,
-  );
-});
+final historyProvider = StreamProvider<List<HistoryEvent>>(
+  (ref) => ref.watch(storeProvider).watchHistory(),
+);
 
 // Connectivity is read through `SyncService.isOnline` with a
 // `ValueListenableBuilder` (as `lastSyncedAt` / `lastError` already are)
@@ -100,15 +105,17 @@ final historyProvider = StreamProvider<List<HistoryEvent>>((ref) {
 
 /// JSON export / import of the whole local DB — Settings → Data.
 final backupServiceProvider = Provider<BackupService>(
-  (ref) => BackupService(ref.watch(isarProvider)),
+  (ref) => BackupService(ref.watch(storeProvider)),
 );
 
 /// Full wipe back to a fresh install — Settings → Data → Delete all data.
 final resetServiceProvider = Provider<ResetService>(
   (ref) => ResetService(
-    ref.watch(isarProvider),
+    ref.watch(storeProvider),
     ref.watch(sharedPreferencesProvider),
     ref.watch(syncServiceProvider),
+    vault: ref.watch(vaultServiceProvider),
+    secure: ref.watch(secureSettingsProvider),
   ),
 );
 
@@ -135,7 +142,10 @@ final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, ThemeMode>(
 
 /// Monthly take-home used for the budget screen's Needs/Wants/Savings split.
 final monthlySalaryProvider = StateNotifierProvider<SalaryNotifier, double>(
-  (ref) => SalaryNotifier(ref.watch(sharedPreferencesProvider)),
+  (ref) => SalaryNotifier(
+    ref.watch(sharedPreferencesProvider),
+    ref.watch(secureSettingsProvider),
+  ),
 );
 
 /// The target Needs/Wants/Savings split itself — defaults to 65/15/20 but is

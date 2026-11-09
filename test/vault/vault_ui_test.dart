@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:isar_community/isar.dart';
+import 'package:life_manager/store/isar_store.dart';
 import 'package:life_manager/models/history_event.dart';
 import 'package:life_manager/models/item.dart';
 import 'package:life_manager/theme/app_theme.dart';
@@ -32,7 +33,7 @@ void main() {
                 name: 'ui',
               );
               final svc = VaultService(
-                isar,
+                IsarStore(isar),
                 prefs: await SharedPreferences.getInstance(),
                 documentsDir: () async => dir,
                 iterations: 1000,
@@ -114,5 +115,93 @@ void main() {
     expect(find.text('Save now'), findsOneWidget);
     expect(find.text('Change passphrase'), findsOneWidget);
     svc.dispose();
+  });
+
+  group('opening a received file', () {
+    Future<(Isar, VaultService, Directory)> setUpSvc(
+      WidgetTester tester,
+      String name,
+    ) async {
+      SharedPreferences.setMockInitialValues({});
+      FlutterSecureStorage.setMockInitialValues({});
+      final dir = Directory.systemTemp.createTempSync('vault_ui_open');
+      addTearDown(() => dir.deleteSync(recursive: true));
+      final r =
+          await tester.runAsync(() async {
+                final isar = await Isar.open(
+                  [ItemSchema, HistoryEventSchema],
+                  directory: dir.path,
+                  name: name,
+                );
+                final svc = VaultService(
+                  IsarStore(isar),
+                  prefs: await SharedPreferences.getInstance(),
+                  documentsDir: () async => dir,
+                  iterations: 1000,
+                );
+                return (isar, svc, dir);
+              })
+              as (Isar, VaultService, Directory);
+      addTearDown(() => tester.runAsync(() => r.$1.close()));
+      addTearDown(r.$2.dispose);
+      return r;
+    }
+
+    Future<void> pumpOpener(WidgetTester tester, VaultService svc) =>
+        tester.pumpWidget(
+          ProviderScope(
+            overrides: [vaultServiceProvider.overrideWithValue(svc)],
+            child: MaterialApp(
+              theme: buildTheme(),
+              home: Scaffold(
+                body: Consumer(
+                  builder: (context, ref, _) => TextButton(
+                    onPressed: () => openVaultFileFlow(
+                      context,
+                      ref,
+                      File('/elsewhere/shared.lmvault'),
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+    Future<void> settle(WidgetTester tester) async {
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pumpAndSettle();
+      }
+    }
+
+    testWidgets('with no vault, sets one up first', (tester) async {
+      final (_, svc, _) = await setUpSvc(tester, 'open1');
+      await pumpOpener(tester, svc);
+      await tester.tap(find.text('open'));
+      await settle(tester);
+
+      expect(find.text('Set up vault'), findsOneWidget);
+      expect(find.textContaining('protect all data on this phone'),
+          findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Confirm passphrase'),
+          findsOneWidget);
+    });
+
+    testWidgets('once unlocked, asks for the file passphrase with no '
+        'Keychain switch', (tester) async {
+      final (_, svc, _) = await setUpSvc(tester, 'open2');
+      await tester.runAsync(() => svc.saveVault('long enough phrase'));
+      await pumpOpener(tester, svc);
+      await tester.tap(find.text('open'));
+      await settle(tester);
+
+      expect(find.text('Open vault'), findsOneWidget);
+      expect(find.textContaining('shared.lmvault'), findsOneWidget);
+      expect(find.text('Remember on this iPhone (Keychain)'), findsNothing);
+    });
   });
 }

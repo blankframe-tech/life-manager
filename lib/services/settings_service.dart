@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/item.dart';
@@ -11,6 +12,62 @@ const _kSalaryKey = 'monthly_salary';
 const _kSplitNeedsKey = 'budget_split_needs';
 const _kSplitWantsKey = 'budget_split_wants';
 const _kSplitSavingsKey = 'budget_split_savings';
+
+/// Salary and name on iOS / Android: kept in the Keychain / Keystore
+/// (device-only, so not in iCloud or Finder backups) instead of
+/// SharedPreferences, which is plaintext NSUserDefaults and is backed up.
+///
+/// Read once at boot so the notifiers can stay synchronous. Web has none:
+/// boot_web already swaps SharedPreferences for a memory-only store.
+class SecureSettings {
+  SecureSettings._(this._storage, this._values);
+
+  final FlutterSecureStorage _storage;
+  final Map<String, String> _values;
+
+  static const _keys = [_kSalaryKey, _kUserNameKey];
+
+  /// Loads the values and moves any that an older build left in [prefs].
+  /// A prefs copy is removed only after the Keychain write succeeded.
+  static Future<SecureSettings> load(
+    SharedPreferences prefs,
+    FlutterSecureStorage storage,
+  ) async {
+    final values = <String, String>{};
+    for (final k in _keys) {
+      final legacy = prefs.get(k)?.toString();
+      try {
+        var v = await storage.read(key: k);
+        if (v == null && legacy != null) {
+          await storage.write(key: k, value: legacy);
+          v = legacy;
+        }
+        if (v != null) values[k] = v;
+        if (legacy != null) await prefs.remove(k);
+      } catch (e) {
+        // Keychain unavailable: keep the old copy rather than lose it.
+        debugPrint('SecureSettings: could not move $k: $e');
+        if (legacy != null) values[k] = legacy;
+      }
+    }
+    return SecureSettings._(storage, values);
+  }
+
+  String? read(String key) => _values[key];
+
+  void write(String key, String value) {
+    _values[key] = value;
+    _storage.write(key: key, value: value);
+  }
+
+  /// Delete all data: drop them from the Keychain too.
+  Future<void> clear() async {
+    _values.clear();
+    for (final k in _keys) {
+      await _storage.delete(key: k);
+    }
+  }
+}
 
 /// Persisted appearance choice — defaults to following the system setting.
 class ThemeModeNotifier extends StateNotifier<ThemeMode> {
@@ -37,15 +94,27 @@ class ThemeModeNotifier extends StateNotifier<ThemeMode> {
 
 /// Persisted monthly salary used for the 65/20/15 budget split — user-editable
 /// in Settings instead of a compile-time constant.
+/// On native it lives in [SecureSettings], not prefs.
 class SalaryNotifier extends StateNotifier<double> {
-  SalaryNotifier(this._prefs)
-    : super(_prefs.getDouble(_kSalaryKey) ?? kDefaultMonthlySalary);
+  SalaryNotifier(this._prefs, [this._secure])
+    : super(
+        (_secure != null
+                ? double.tryParse(_secure.read(_kSalaryKey) ?? '')
+                : _prefs.getDouble(_kSalaryKey)) ??
+            kDefaultMonthlySalary,
+      );
 
   final SharedPreferences _prefs;
+  final SecureSettings? _secure;
 
   void set(double salary) {
     state = salary;
-    _prefs.setDouble(_kSalaryKey, salary);
+    final secure = _secure;
+    if (secure != null) {
+      secure.write(_kSalaryKey, '$salary');
+    } else {
+      _prefs.setDouble(_kSalaryKey, salary);
+    }
   }
 }
 
@@ -104,15 +173,27 @@ const _kOnboardedKey = 'onboarding_done_v2';
 const _kIntroSeenKey = 'module_intros_seen';
 
 /// The name used in the home greeting. Empty means "no name" — the greeting
-/// then just says "Good morning".
+/// then just says "Good morning". On native it lives in [SecureSettings].
 class UserNameNotifier extends StateNotifier<String> {
-  UserNameNotifier(this._prefs) : super(_prefs.getString(_kUserNameKey) ?? '');
+  UserNameNotifier(this._prefs, [this._secure])
+    : super(
+        (_secure != null
+                ? _secure.read(_kUserNameKey)
+                : _prefs.getString(_kUserNameKey)) ??
+            '',
+      );
 
   final SharedPreferences _prefs;
+  final SecureSettings? _secure;
 
   void set(String name) {
     state = name.trim();
-    _prefs.setString(_kUserNameKey, state);
+    final secure = _secure;
+    if (secure != null) {
+      secure.write(_kUserNameKey, state);
+    } else {
+      _prefs.setString(_kUserNameKey, state);
+    }
   }
 }
 

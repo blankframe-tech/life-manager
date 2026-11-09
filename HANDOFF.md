@@ -1,7 +1,7 @@
 # Handoff — Life Manager (2026-08-11)
 
-> **Current state: branch `V2` (2026-10-24).** Read this section first; the
-> dated notes below it are history from `main` and V1.
+> **Current state: V2 plus the web build, on `main` (2026-11-08).** Read this
+> section first; the dated notes below it are history from V1.
 
 ## V2 at a glance
 
@@ -22,7 +22,13 @@
     from outside before overwriting it.
   - `vault_ui.dart`: Settings → Data & Vault (`VaultTiles`) and `VaultGate`
     (silent Keychain unlock at launch; the Open vault sheet for files from
-    Files / AirDrop).
+    Files / AirDrop). `openVaultFileFlow` unlocks this phone's own vault
+    first (or sets one up, with the 10-character rule) and only then merges
+    the received file. The received file's passphrase is never made the
+    session passphrase or written to the Keychain (`VaultService.openVault`
+    starts a session only for `Documents/LifeManager.lmvault`), and that
+    sheet has no Remember switch. Files over 64 MB
+    (`VaultService.maxFileBytes`) are refused before they are read.
   - iOS open-in: `VaultOpenIn` in `ios/Runner/AppDelegate.swift` copies the
     opened file out of its security-scoped location and hands the path to
     `lib/vault/vault_open_in.dart`.
@@ -32,8 +38,11 @@
   only the encrypted vault: never write plaintext there.
 - **Verify:** `scripts/check.sh` (0 analyze issues, all tests) and
   `flutter build ios --simulator --no-codesign`.
-- **Open:** a browser version that reads and writes the vault (WebCrypto,
-  per `docs/VAULT_FORMAT.md`) is planned and not started.
+- **Web.** A static Flutter web build opens the vault in
+  the browser (WebCrypto), edits it in memory, and syncs by writing back
+  (Chrome) or downloading (Safari / Firefox). Items and history go through
+  `LocalStore` (`lib/store/`): Isar on iOS, memory on the web. Everything
+  else: `docs/WEB.md`.
 
 
 Branch `main`. Working tree has **uncommitted changes** implementing auth
@@ -143,8 +152,9 @@ It's a plain log of money in and out — deliberately separate from Budget (a
   `test/txn_test.dart` covers it, plus the screen itself via an overridden
   `itemsProvider` stream (no Isar needed for a widget test).
 - **Categories are per-device**, in SharedPreferences
-  (`lib/services/txn_category_service.dart`), same as salary and the budget
-  split — they do *not* sync. Because a transaction stores the category as
+  (`lib/services/txn_category_service.dart`), same as the budget split
+  (salary and name are per-device too, but in the Keychain) — they do *not*
+  sync. Because a transaction stores the category as
   text, a category deleted here (or created on another device) still displays
   and still counts in the rollup; `mergeUsedCategories` is what keeps such
   strays in the picker so editing an old row can't silently retag it. Manage
@@ -156,7 +166,7 @@ It's a plain log of money in and out — deliberately separate from Budget (a
 ## Auth setup — done (2026-08-11)
 
 Google Sign-In is live and verified end-to-end on the iOS simulator
-(`the.abraar.rar@gmail.com`), and the RLS/history_events migration has been
+(`<owner-email>`), and the RLS/history_events migration has been
 run against the real, live Supabase project. What actually happened,
 including two things not covered by the original plan:
 
@@ -164,9 +174,9 @@ including two things not covered by the original plan:
    planned (Web + iOS + Android client IDs, OAuth consent screen in Testing
    mode, no Firebase). Web client ID is `GOOGLE_SERVER_CLIENT_ID` in `.env`.
 2. **`.env` pointed at the wrong Supabase project initially** — it had
-   `SUPABASE_URL=https://snuyfoaigowarifbaqdk.supabase.co`, a project that
+   `SUPABASE_URL=https://<old-wrong-project-ref>.supabase.co`, a project that
    doesn't exist in this account. Corrected to the real, live project
-   (`utsbjdmhdfcdidlqurdl`) — check `.env` matches the project you see in
+   (`<project-ref>`) — check `.env` matches the project you see in
    the Supabase dashboard before assuming anything is misconfigured.
 3. **iOS needed two fixes beyond the Web/iOS/Android client IDs above:**
    - `ios/Runner/Info.plist` needs `GIDClientID` (the iOS client ID) and a
@@ -220,8 +230,8 @@ keystore is outstanding.
 | 1 | No nonce on the Google ID-token exchange (replay) | `AuthService` generates a 256-bit CSPRNG nonce, hands it to `GoogleSignIn.initialize` and the same value to `signInWithIdToken` |
 | 2 | Refresh token in plaintext SharedPreferences | `SecureLocalStorage` / `SecureGotrueAsyncStorage` (`lib/services/secure_session_storage.dart`) move it to Keychain / Keystore, migrating any existing plaintext session on first launch |
 | 3 | Release builds signed with the debug key | `android/app/build.gradle.kts` reads `android/key.properties`; falls back to the debug key with a loud warning |
-| 4 | Backups could copy the DB and token off-device | `allowBackup="false"` + `res/xml/data_extraction_rules.xml` on Android; `excludeLocalDatabaseFromBackup()` in `AppDelegate.swift` for iCloud |
-| 5 | No app lock over an unencrypted local DB | Optional biometric/passcode lock — Settings → Security. Isar 3 has no encryption support, so this is the available mitigation, not a substitute |
+| 4 | Backups could copy the DB and token off-device | `allowBackup="false"` + `res/xml/data_extraction_rules.xml` on Android; `excludeLocalDatabaseFromBackup()` in `AppDelegate.swift` for iCloud, run at launch and on every move to the background (a fresh install's DB is created after launch); salary and name live in the Keychain (`SecureSettings` in `settings_service.dart`), moved out of SharedPreferences on first launch |
+| 5 | No app lock over an unencrypted local DB | Optional biometric/passcode lock — Settings → Security. Isar 3 has no encryption support, so this is the available mitigation, not a substitute. `AppLockGate` wraps the root Navigator (`MaterialApp.builder` in `boot_native.dart`), so pages, dialogs and sheets opened on top are covered too. Turning the lock off and Export data (plaintext JSON) each ask for the prompt again. `SceneDelegate.swift` covers the window natively while the app is inactive, so the App Switcher card shows the launch screen, not data |
 | 6 | Any Google account could sign up | `supabase/restrict_signups.sql` (allowlist + `auth.users` trigger) — **ran 2026-08-11**, plus "Allow new users to sign up" turned off in the dashboard |
 | 7 | Raw exception strings shown in the UI | `describeSyncError` (`sync_service.dart`) and `AuthService.describeAuthError` return summaries; detail only in debug builds |
 | 8 | Seed UUIDs collided across accounts | `SeedLoader` derives its v5 namespace from the owner's user id, keeping per-account determinism |
@@ -258,14 +268,17 @@ there's no forced re-login.
    `supabase/restrict_signups.sql` run against the live project. The script is
    idempotent and safe to re-run.
 
-   The allowlist holds **two** addresses. `restrict_signups.sql` only seeds
-   `the.abraar.rar@gmail.com`; `abraar.ai.dev@gmail.com` was added by hand
-   afterwards, because the script's own verification query flagged it as an
-   existing account that was not on the list. That account owns no rows
-   (0 items, 0 history events, one sign-in at creation) — the real data lives
-   under `the.abraar.rar@gmail.com` (83 items, 9 history events). **If you
-   ever re-run the script on a fresh project, it will not recreate the second
-   entry.**
+   The allowlist holds **two** addresses: `<owner-email>` and
+   `<second-test-email>`. The second was added after the script's own
+   verification query flagged it as an existing account that was not on the
+   list. That account owns no rows (0 items, 0 history events, one sign-in at
+   creation) — the real data lives under `<owner-email>` (83 items, 9 history
+   events). The real addresses are not in the repo: `restrict_signups.sql`
+   seeds nothing, and the insert lives in the gitignored
+   `supabase/allowlist.local.sql`, which you run after the script. **On a
+   fresh project, create that file first or nobody can sign up.**
+   `scripts/check.sh` fails if a Gmail address or a Supabase project URL is
+   committed.
 
    The trigger was tested both ways inside a self-rolling-back `DO` block:
    a non-allowlisted address was rejected with `check_violation`, an
@@ -371,7 +384,12 @@ read back with `fromMap()`. There is deliberately no second definition of
 ```
 
 Deleted items (`is_deleted`) and the full history log are both included —
-dropping tombstones would resurrect deleted items on the next import.
+dropping tombstones would resurrect deleted items on the next import. A
+tombstone carries no content: `SyncService.delete` writes a copy with title,
+note, amount, direction, category, section and due date cleared, and blanks
+the title of that item's earlier history events (locally only; the cloud log
+has no update policy). Swipe-to-delete's Undo restores from the row the
+screen still holds. History shows such events as "Deleted an entry".
 
 **Export** writes to the **temporary** directory, not Documents, then hands the
 file to the share sheet (Save to Files / AirDrop / mail). That's on purpose:
@@ -400,9 +418,12 @@ accept that version and below, and refuse anything newer with a clear message.
 Settings → Data → **Delete all data**. `lib/services/reset_service.dart`, with
 the confirmation in `lib/widgets/delete_everything_dialog.dart`.
 
-Wipes items and history from the local DB **and the cloud**, clears every
-preference (salary, split, theme, app lock), and signs out — back to the
-sign-in screen as on a fresh install.
+Wipes items and history from the local DB **and the cloud**, deletes the
+vault file (`Documents/LifeManager.lmvault` and its `.tmp`) and forgets the
+Keychain passphrase, clears every preference (salary, split, theme, app lock)
+plus the Keychain-held salary and name, and signs out — back to the sign-in
+screen as on a fresh install. Copies of the vault elsewhere (iCloud Drive, a
+browser) are not touched.
 
 **⚠️ Requires `supabase/allow_history_delete.sql` to have been run.** That
 script adds an owner-scoped DELETE policy to `history_events`, which until now
@@ -419,12 +440,15 @@ Ordering exists to make partial failure impossible:
 1. **cloud history first** — the only delete that can be *refused*, so it fails
    while everything is still intact
 2. cloud items
-3. local DB (`isar.clear()`)
-4. `SeedLoader.markSeeded()` — without it the next launch sees an empty DB,
+3. `VaultService.destroy()` — locks (stopping auto-save, which would otherwise
+   write the emptied DB), forgets the Keychain passphrase and deletes the
+   file, so the next launch can't merge everything back
+4. local DB (`isar.clear()`)
+5. `SeedLoader.markSeeded()` — without it the next launch sees an empty DB,
    calls it a first run, and re-imports `seed.json`, undoing the reset
-5. `prefs.clear()`, then the caller invalidates the preference-backed providers
+6. `prefs.clear()`, then the caller invalidates the preference-backed providers
    so the UI drops to defaults rather than showing stale values
-6. sign out last, since the cloud deletes need the session
+7. sign out last, since the cloud deletes need the session
 
 Refused up front when Supabase is configured but there's no session: wiping
 only the device would be actively misleading, because the next sync pulls it
@@ -485,7 +509,11 @@ provisioning. Clean launch, zero unhandled exceptions.
    already up to date"*, which also proves the merge is idempotent.
 3. **Settings → Security → Require unlock** — the biometric prompt itself can't
    be driven from a test harness. Gate logic has unit coverage
-   (`test/app_lock_test.dart`), the Face ID prompt does not.
+   (`test/app_lock_test.dart`, and `test/widgets/app_lock_gate_test.dart` for
+   the real tree with Settings open), the Face ID prompt does not. On a device:
+   turn the lock on, open Settings, swipe home and open the App Switcher — the
+   card must show the launch screen, not data. Reopen and cancel Face ID — the
+   lock screen must stay, and switching the lock off must ask again.
 
 ### Realtime subscribed with an expired JWT (fixed 2026-08-12)
 

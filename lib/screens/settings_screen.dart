@@ -63,7 +63,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     Text('Life Manager', style: context.text.headlineSmall),
                     Text(
-                      'Your data stays on this device.',
+                      kIsWeb
+                          ? 'Nothing is stored in this browser.'
+                          : 'Your data stays on this device.',
                       style: context.text.bodySmall,
                     ),
                   ],
@@ -124,11 +126,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             groupHeader(context, 'Storage'),
             cardGroup(context, [
               const ListTile(
-                leading: Icon(CupertinoIcons.device_phone_portrait),
-                title: Text('On this device only'),
+                leading: Icon(
+                  kIsWeb
+                      ? CupertinoIcons.lock_shield
+                      : CupertinoIcons.device_phone_portrait,
+                ),
+                title: Text(kIsWeb ? 'In this tab only' : 'On this device only'),
                 subtitle: Text(
-                  'Nothing leaves your phone. Set up the encrypted '
-                  'vault in Data & Vault below.',
+                  kIsWeb
+                      ? 'Your data never leaves this browser except as the '
+                            'encrypted file you save.'
+                      : 'Nothing leaves your phone. Set up the encrypted '
+                            'vault in Data & Vault below.',
                 ),
               ),
             ]),
@@ -203,7 +212,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ]),
           ],
           groupHeader(context, 'Data & Vault'),
-          cardGroup(context, [
+          cardGroup(context, ref.watch(platformDataTilesProvider) ?? [
             ListTile(
               leading: const Icon(CupertinoIcons.square_arrow_up),
               title: const Text('Export data'),
@@ -240,8 +249,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: _busy ? null : _deleteAllData,
             ),
           ]),
-          groupHeader(context, 'Security'),
-          cardGroup(context, [_appLockTile(context)]),
+          // The web locks from its top bar; there is no device passcode.
+          if (!kIsWeb) ...[
+            groupHeader(context, 'Security'),
+            cardGroup(context, [_appLockTile(context)]),
+          ],
           groupHeader(context, 'Activity'),
           cardGroup(context, [
             ListTile(
@@ -275,6 +287,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Writes a backup and hands it to the system share sheet, which is what
   /// "download" means on a phone — save to Files, AirDrop, mail it to yourself.
   Future<void> _exportData() async {
+    // The export is plaintext: with the app lock on, ask again first.
+    if (ref.read(appLockEnabledProvider) &&
+        !await ref.read(appLockServiceProvider).authenticate()) {
+      if (mounted) _toast('Not exported — the check didn\'t pass');
+      return;
+    }
+    if (!mounted) return;
     setState(() => _busy = true);
     try {
       final file = await ref.read(backupServiceProvider).writeExportFile();
@@ -431,8 +450,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       kDebugMode ? e.toString() : 'please try again';
 
   /// App lock switch. Disabled when the device has no biometrics and no
-  /// passcode, and enabling it requires passing the prompt once — otherwise a
-  /// user could flip it on and be locked out by a sensor that never works.
+  /// passcode. Flipping it either way requires passing the prompt (see
+  /// [_setAppLock]).
   Widget _appLockTile(BuildContext context) {
     final enabled = ref.watch(appLockEnabledProvider);
     final available = ref.watch(appLockAvailableProvider).valueOrNull ?? false;
@@ -451,19 +470,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _setAppLock(bool value) async {
     final notifier = ref.read(appLockEnabledProvider.notifier);
-    if (!value) {
-      // Turning it off is guarded by the lock screen itself — reaching Settings
-      // already required unlocking, so no second prompt here.
-      notifier.set(false);
-      return;
-    }
+    // Both directions need a passing prompt: on, so a sensor that never works
+    // can't lock the user out; off, so a borrowed phone can't drop the lock.
     final ok = await ref.read(appLockServiceProvider).authenticate();
     if (!mounted) return;
     if (ok) {
-      notifier.set(true);
+      notifier.set(value);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Left off — the check didn\'t pass')),
+      _toast(
+        value
+            ? 'Left off — the check didn\'t pass'
+            : 'Left on — the check didn\'t pass',
       );
     }
   }

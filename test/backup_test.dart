@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isar_community/isar.dart';
 import 'package:life_manager/models/history_event.dart';
 import 'package:life_manager/models/item.dart';
 import 'package:life_manager/services/backup_service.dart';
+import 'package:life_manager/store/local_store.dart';
 
 /// Builds the JSON a backup file would contain, without needing an Isar
 /// instance — the merge/validation logic under test is all in [BackupService],
@@ -179,7 +179,7 @@ void main() {
 /// `peek`/validation never touches the database, so the tests above don't need
 /// a real Isar. Any accidental DB use in those paths shows up as a crash here
 /// rather than passing silently.
-class _NoDb implements Isar {
+class _NoDb implements LocalStore {
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw StateError('peek must not touch the database');
