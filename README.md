@@ -18,7 +18,7 @@ Everything reads and writes to an on-device database **instantly** (0 ms — the
 UI never waits on the network). With cloud sync turned on (see V2 below), a
 background worker mirrors it to Supabase.
 
-## V2 (branch `V2`)
+## V2 (branch `main`)
 
 - **Modules.** Every feature lives in `lib/modules/<name>/` behind one
   `LifeModule` contract, and `lib/app_modules.dart` lists the enabled modules

@@ -13,8 +13,8 @@ Supabase sync exists but is off (`kCloudSyncEnabled` in `lib/app_modules.dart`).
   never Isar directly: the web build has no Isar. Web code lives in
   `lib/web/` and `lib/boot/boot_web.dart` and must never use browser storage
   (a test greps for it). See [docs/WEB.md](docs/WEB.md).
-- **Verify:** `scripts/check.sh` (pub get, codegen, analyze, test). Analyze
-  must report 0 issues.
+- **Verify:** `scripts/check.sh` (identifier guard, pub get, codegen,
+  analyze, test). Analyze must report 0 issues.
 - **Public repo:** never commit `.env`, keys, `assets/seed/seed.json` or
-  personal data.
+  personal data (emails, the Supabase project ref; check.sh greps for them).
 - More context: `README.md`, `HANDOFF.md`, `design_v2.md`.

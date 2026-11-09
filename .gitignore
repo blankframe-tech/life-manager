@@ -60,3 +60,6 @@ app.*.map.json
 /android/key.properties
 *.jks
 *.keystore
+
+# Real signup allowlist (personal emails), see supabase/restrict_signups.sql.
+/supabase/allowlist.local.sql

@@ -1,6 +1,6 @@
 -- Life Manager — restrict who can create an account
 -- Run this ONCE in the Supabase dashboard (SQL Editor → New query → paste →
--- Run), after replacing the email below with your own.
+-- Run), then run your supabase/allowlist.local.sql (see section 1).
 --
 -- Why: Google Sign-In on a project with signups enabled will happily mint an
 -- account for *anyone* with a Google account. Owner-scoped RLS means a stranger
@@ -25,17 +25,15 @@ create table if not exists public.allowed_emails (
 -- and by you in the dashboard.
 alter table public.allowed_emails enable row level security;
 
--- ⚠️  REPLACE with your own address(es) before running.
+-- The real addresses are not committed. Put the insert in the gitignored
+-- supabase/allowlist.local.sql and run it right after this script:
 --
--- Ran against the live project on 2026-08-11. Both addresses below already
--- had accounts at that point; the second was added after the verification
--- query at the bottom flagged it as an existing account missing from the
--- list. It owns no rows — it was a one-off test sign-in — but it's kept so
--- the account remains recreatable.
-insert into public.allowed_emails (email) values
-  ('the.abraar.rar@gmail.com'),
-  ('abraar.ai.dev@gmail.com')
-  on conflict (email) do nothing;
+--   insert into public.allowed_emails (email) values
+--     ('you@example.com')
+--     on conflict (email) do nothing;
+--
+-- Until that runs the allowlist is empty and the trigger below rejects every
+-- signup. The live project already has its allowlist (2026-08-11).
 
 -- ── 2. Reject signups outside the allowlist ────────────────────────────────
 -- `security definer` so the function can read `allowed_emails` regardless of
