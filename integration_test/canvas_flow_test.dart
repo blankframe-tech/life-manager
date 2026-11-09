@@ -13,6 +13,7 @@ import 'package:life_manager/models/history_event.dart';
 import 'package:life_manager/models/item.dart';
 import 'package:life_manager/providers/providers.dart';
 import 'package:life_manager/screens/root_scaffold.dart';
+import 'package:life_manager/store/isar_store.dart';
 import 'package:life_manager/theme/app_theme.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,7 +44,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          isarProvider.overrideWithValue(isar),
+          storeProvider.overrideWithValue(IsarStore(isar)),
           sharedPreferencesProvider.overrideWithValue(prefs),
         ],
         child: MaterialApp(

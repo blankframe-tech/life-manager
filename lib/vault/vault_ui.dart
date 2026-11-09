@@ -32,19 +32,33 @@ Future<PassphraseResult?> _passphraseSheet(
   _Mode mode, {
   String? title,
   String? subtitle,
+  bool offerRemember = true,
 }) => showModalBottomSheet<PassphraseResult>(
   context: context,
   isScrollControlled: true,
   backgroundColor: Colors.transparent,
-  builder: (_) =>
-      _PassphraseSheet(mode: mode, title: title, subtitle: subtitle),
+  builder: (_) => _PassphraseSheet(
+    mode: mode,
+    title: title,
+    subtitle: subtitle,
+    offerRemember: offerRemember,
+  ),
 );
 
 class _PassphraseSheet extends StatefulWidget {
-  const _PassphraseSheet({required this.mode, this.title, this.subtitle});
+  const _PassphraseSheet({
+    required this.mode,
+    this.title,
+    this.subtitle,
+    this.offerRemember = true,
+  });
   final _Mode mode;
   final String? title;
   final String? subtitle;
+
+  /// Show the Keychain switch. Off for a received file's passphrase, which
+  /// must never become the remembered one.
+  final bool offerRemember;
 
   @override
   State<_PassphraseSheet> createState() => _PassphraseSheetState();
@@ -205,7 +219,7 @@ class _PassphraseSheetState extends State<_PassphraseSheet> {
                       ),
                     ),
                   ],
-                  if (widget.mode != _Mode.change)
+                  if (widget.mode != _Mode.change && widget.offerRemember)
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Remember on this iPhone (Keychain)'),
@@ -255,27 +269,58 @@ String _describe(Object e) => switch (e) {
 
 /// Asks for the passphrase of [file] and merges it in. Used by "Open vault
 /// file" and by files opened from Files / AirDrop.
+///
+/// A received file's passphrase was chosen by whoever sent it, so it never
+/// protects this phone's data: if this phone's own vault is locked, it is
+/// unlocked first; if there is none, it is set up first (10-character rule,
+/// confirm field). Only then is [file] merged.
 Future<void> openVaultFileFlow(
   BuildContext context,
   WidgetRef ref,
   File file,
 ) async {
   final svc = ref.read(vaultServiceProvider);
+  final name = file.uri.pathSegments.last;
+  if (!svc.isUnlocked) {
+    final exists = await svc.exists;
+    if (!context.mounted) return;
+    final own = await _passphraseSheet(
+      context,
+      exists ? _Mode.unlock : _Mode.setUp,
+      subtitle: exists
+          ? 'Unlock your vault first, then $name is merged into it.'
+          : 'Set up a vault before opening $name. This passphrase will '
+                'protect all data on this phone, not just $name.',
+    );
+    if (own == null || !context.mounted) return;
+    try {
+      if (exists) {
+        await svc.openVault(
+          await svc.vaultFile,
+          own.passphrase,
+          remember: own.remember,
+        );
+      } else {
+        await svc.saveVault(own.passphrase, remember: own.remember);
+      }
+    } catch (e) {
+      if (context.mounted) _toast(context, _describe(e));
+      return;
+    }
+    if (!context.mounted) return;
+  }
   final r = await _passphraseSheet(
     context,
     _Mode.unlock,
     title: 'Open vault',
     subtitle:
-        'Merges ${file.uri.pathSegments.last} into this phone. '
-        'Newer edits win; nothing is deleted.',
+        'Enter the passphrase for $name. It is merged into this phone: '
+        'newer edits win; nothing is deleted.',
+    offerRemember: false,
   );
   if (r == null || !context.mounted) return;
   try {
-    final report = await svc.openVault(
-      file,
-      r.passphrase,
-      remember: r.remember,
-    );
+    final report = await svc.openVault(file, r.passphrase);
     if (context.mounted) _toast(context, report.summary);
   } catch (e) {
     if (context.mounted) _toast(context, _describe(e));

@@ -49,10 +49,12 @@ class _DeleteEverythingDialogState extends State<DeleteEverythingDialog> {
             widget.cloud
                 ? 'This erases every item and all activity history — on this '
                       'device and in the cloud, so it disappears from your other '
-                      'devices too. Your settings are reset and you are signed '
-                      'out.'
+                      'devices too. The vault file on this device and its '
+                      'remembered passphrase are deleted, your settings are '
+                      'reset and you are signed out.'
                 : 'This erases every item and all activity history on this '
-                      'device, and resets your settings.',
+                      'device, deletes the vault file on this device and its '
+                      'remembered passphrase, and resets your settings.',
           ),
           const SizedBox(height: 12),
           const Text(

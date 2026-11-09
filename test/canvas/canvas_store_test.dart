@@ -6,11 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:isar_community/isar.dart';
 import 'package:life_manager/canvas/blueprint.dart';
 import 'package:life_manager/canvas/canvas_store.dart';
+import 'package:life_manager/canvas/canvas_text_isar.dart';
 import 'package:life_manager/canvas/shaper.dart';
 import 'package:life_manager/models/canvas_text.dart';
 import 'package:life_manager/models/history_event.dart';
 import 'package:life_manager/models/item.dart';
 import 'package:life_manager/services/sync_service.dart';
+import 'package:life_manager/store/isar_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/isar_core.dart';
@@ -71,18 +73,21 @@ void main() {
     );
   });
 
-  test('a state saved by an older build moves its words out of prefs', () async {
-    final a = await fresh();
-    a.commit(a.preview([const SourceDoc('Keep', keepNote)]));
-    final old = jsonEncode(a.state.toJson());
-    expect(old, contains('Dena paona'));
+  test(
+    'a state saved by an older build moves its words out of prefs',
+    () async {
+      final a = await fresh();
+      a.commit(a.preview([const SourceDoc('Keep', keepNote)]));
+      final old = jsonEncode(a.state.toJson());
+      expect(old, contains('Dena paona'));
 
-    text = CanvasTextStore();
-    final b = await fresh({kCanvasPrefsKey: old});
-    expect(b.state.allSections, a.state.allSections);
-    expect(await savedPrefs(), isNot(contains('Dena paona')));
-    expect(text.read(), contains('Dena paona'));
-  });
+      text = CanvasTextStore();
+      final b = await fresh({kCanvasPrefsKey: old});
+      expect(b.state.allSections, a.state.allSections);
+      expect(await savedPrefs(), isNot(contains('Dena paona')));
+      expect(text.read(), contains('Dena paona'));
+    },
+  );
 
   test('without its words the shape still loads, as Untitled', () async {
     final a = await fresh();
@@ -336,9 +341,10 @@ void main() {
     });
 
     test('writes once; a re-import leaves edits and deletes alone', () async {
-      final sync = SyncService(isar);
+      final store = IsarStore(isar);
+      final sync = SyncService(store);
       final items = Shaper.compile(const SourceDoc('Keep', keepNote)).items;
-      expect(await writeNewItems(isar, sync, items), items.length);
+      expect(await writeNewItems(store, sync, items), items.length);
 
       final rent = await isar.items.filter().titleEqualTo('Rent').findFirst();
       rent!.title = 'Rent (new flat)';
@@ -347,12 +353,10 @@ void main() {
       await sync.delete(soap!);
 
       final again = Shaper.compile(const SourceDoc('Keep', keepNote)).items;
-      expect(await writeNewItems(isar, sync, again), 0);
+      expect(await writeNewItems(store, sync, again), 0);
       expect(await isar.items.filter().titleEqualTo('Rent').count(), 0);
-      final soapNow = await isar.items
-          .filter()
-          .titleEqualTo('Soap')
-          .findFirst();
+      // By uuid: a tombstone is content-free, so its title is blank.
+      final soapNow = await store.item(soap.uuid);
       expect(soapNow!.isDeleted, isTrue);
     });
   });

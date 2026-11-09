@@ -166,6 +166,10 @@ the shape and keeps every row.
 - The blueprint lives in SharedPreferences and Isar, not in the vault or
   backup file. Restoring a vault on a new phone brings the rows back (into the
   classic screens) but not the shape.
+- On the web the canvas works in memory only, like the rest of the web build:
+  the shape and its words (`CanvasTextStore`) are gone when the tab closes.
+  `IsarCanvasText` (`lib/canvas/canvas_text_isar.dart`) is native-only, since
+  Isar does not compile to JavaScript.
 - `Shaper.version` is saved but nothing re-shapes old imports when the rules
   change (the raw text is gone by design). A re-import of the same text after
   a rules change is skipped as already present; Settings → Layout → standard,

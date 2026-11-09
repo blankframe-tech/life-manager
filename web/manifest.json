@@ -1,0 +1,17 @@
+{
+    "name": "Life Manager",
+    "short_name": "Life Manager",
+    "start_url": ".",
+    "display": "standalone",
+    "background_color": "#F7F3EA",
+    "theme_color": "#1F4D3A",
+    "description": "Open your encrypted Life Manager vault in the browser. Nothing is stored on a server.",
+    "orientation": "any",
+    "prefer_related_applications": false,
+    "icons": [
+        {"src": "icons/Icon-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "icons/Icon-512.png", "sizes": "512x512", "type": "image/png"},
+        {"src": "icons/Icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable"},
+        {"src": "icons/Icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+    ]
+}

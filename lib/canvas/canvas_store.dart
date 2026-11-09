@@ -22,12 +22,11 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/canvas_text.dart';
 import '../models/item.dart';
 import '../services/sync_service.dart';
+import '../store/local_store.dart';
 import 'blueprint.dart';
 import 'shaper.dart';
 
@@ -114,32 +113,14 @@ class CanvasPreview {
       items.where((i) => i.section == sectionId).length;
 }
 
-/// Holds the canvas's own words as JSON. In memory here (tests); the app
-/// uses [IsarCanvasText].
+/// Holds the canvas's own words as JSON. In memory here (tests and the web
+/// build); iOS / Android use `IsarCanvasText` (`canvas_text_isar.dart`).
 class CanvasTextStore {
   String? _json;
   String? read() => _json;
 
   /// Null forgets them.
   Future<void> write(String? json) async => _json = json;
-}
-
-/// [CanvasTextStore] in the Isar DB, which is excluded from iOS backups.
-class IsarCanvasText extends CanvasTextStore {
-  IsarCanvasText(this.isar);
-  final Isar isar;
-
-  @override
-  String? read() => isar.canvasTexts.getSync(0)?.json;
-
-  // Async, not writeTxnSync: a sync write throws while any other async write
-  // is running. Isar runs async writes in the order they were queued.
-  @override
-  Future<void> write(String? json) => isar.writeTxn(() async {
-    json == null
-        ? await isar.canvasTexts.delete(0)
-        : await isar.canvasTexts.put(CanvasText()..json = json);
-  });
 }
 
 /// Moves the user's words out of a [CanvasState.toJson] map, in place:
@@ -368,11 +349,14 @@ class CanvasNotifier extends StateNotifier<CanvasState> {
 /// Saves the rows in [items] that the database doesn't have yet, and returns
 /// how many. A row from an earlier import of the same text is left as the
 /// user last left it: edited, ticked or deleted.
-Future<int> writeNewItems(Isar isar, SyncService sync, List<Item> items) async {
+Future<int> writeNewItems(
+  LocalStore store,
+  SyncService sync,
+  List<Item> items,
+) async {
   var written = 0;
   for (final item in items) {
-    final exists = await isar.items.filter().uuidEqualTo(item.uuid).count() > 0;
-    if (exists) continue;
+    if (await store.item(item.uuid) != null) continue;
     await sync.save(item);
     written++;
   }

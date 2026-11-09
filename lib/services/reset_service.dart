@@ -1,11 +1,11 @@
-import 'package:isar_community/isar.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config/supabase_config.dart';
 import '../data/seed_loader.dart';
-import '../models/history_event.dart';
-import '../models/item.dart';
+import '../store/local_store.dart';
+import '../vault/vault_service.dart';
+import 'settings_service.dart';
 import 'sync_service.dart';
 
 /// Wipes everything and returns the app to a fresh-install state.
@@ -20,18 +20,27 @@ import 'sync_service.dart';
 ///     `supabase/allow_history_delete.sql`), so it runs first and aborts the
 ///     whole reset while everything is still intact
 ///  2. cloud items
-///  3. local DB
-///  4. seed marker, so the next launch doesn't re-import `seed.json`
-///  5. preferences
+///  3. the vault: lock, forget the Keychain passphrase, delete the file —
+///     before the DB, so auto-save can't write the emptied DB, and so the
+///     next launch can't merge everything back from it
+///  4. local DB
+///  5. seed marker, so the next launch doesn't re-import `seed.json`
+///  6. preferences (and the Keychain-held salary and name)
 class ResetService {
-  ResetService(this.isar, this.prefs, this.sync);
+  ResetService(this.store, this.prefs, this.sync,
+      {required this.vault, this.secure});
 
-  final Isar isar;
+  final LocalStore store;
   final SharedPreferences prefs;
 
   /// Needed only to cut the realtime subscriptions for the duration of the
   /// wipe — see [SyncService.suspendRealtime].
   final SyncService sync;
+
+  final VaultService vault;
+
+  /// Salary and name on native (the Keychain), cleared with the prefs.
+  final SecureSettings? secure;
 
   SupabaseClient get _db => Supabase.instance.client;
 
@@ -99,9 +108,11 @@ class ResetService {
       }
     }
 
-    final localItems = await isar.items.count();
-    final localHistory = await isar.historyEvents.count();
-    await isar.writeTxn(() => isar.clear());
+    await vault.destroy();
+
+    final localItems = (await store.items()).length;
+    final localHistory = (await store.history()).length;
+    await store.clear();
 
     // Without this the next launch treats an empty DB as a first run and
     // re-imports the bundled seed, quietly undoing the reset.
@@ -110,6 +121,7 @@ class ResetService {
     // Salary, budget split, theme, app-lock switch, the monthly-reset marker —
     // all of it. Callers refresh their in-memory copies afterwards.
     await prefs.clear();
+    await secure?.clear();
 
     return ResetReport(
       localItems: localItems,

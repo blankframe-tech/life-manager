@@ -81,7 +81,12 @@ class HistoryScreen extends ConsumerWidget {
         accent: module?.accent ?? Accents.forest,
         size: 40,
       ),
-      title: Text('${_verb(event.action)} "${event.title}"'),
+      // Events of a deleted entry carry no title.
+      title: Text(
+        event.title.isEmpty
+            ? '${_verb(event.action)} an entry'
+            : '${_verb(event.action)} "${event.title}"',
+      ),
       subtitle: Text(
         '${module?.title ?? event.itemKind} · ${DateFormat('h:mm a').format(event.timestamp.toLocal())}',
       ),

@@ -18,7 +18,7 @@ Everything reads and writes to an on-device database **instantly** (0 ms — the
 UI never waits on the network). With cloud sync turned on (see V2 below), a
 background worker mirrors it to Supabase.
 
-## V2 (branch `V2`)
+## V2 (branch `main`)
 
 - **Modules.** Every feature lives in `lib/modules/<name>/` behind one
   `LifeModule` contract, and `lib/app_modules.dart` lists the enabled modules
@@ -35,12 +35,22 @@ background worker mirrors it to Supabase.
   after every change while unlocked. "Remember on this iPhone" keeps the
   passphrase in the Keychain so the vault unlocks at launch. Opening a vault
   (picker, or tapping a `.lmvault` in Files / AirDrop) merges it with
-  last-write-wins, like sync. A lost passphrase can't be recovered. The format
+  last-write-wins, like sync. A received file's passphrase only opens that
+  file: if your own vault is locked you unlock it first, and if you have none
+  you set one up first. Files over 64 MB are refused. Delete all data also
+  deletes the vault file and forgets the remembered passphrase. A lost
+  passphrase can't be recovered. The format
   is written for a future browser version using WebCrypto only:
   [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md), code in `lib/vault/`.
+- **Web.** The same UI runs in Safari, Firefox and Chrome as static files:
+  open your `.lmvault`, type the passphrase, edit, Sync. Decryption happens
+  in the browser and nothing is stored on a server or in the browser. Build,
+  hosting, threat model and guardrails: [docs/WEB.md](docs/WEB.md).
 - **Where data lives on iOS.** The Isar DB is in Library/Application Support
-  (excluded from backups; moved there from Documents on first V2 launch).
-  Documents, which Files shows, holds only the encrypted vault.
+  (excluded from backups, marked at launch and whenever the app goes to the
+  background; moved there from Documents on first V2 launch). Documents,
+  which Files shows, holds only the encrypted vault. Salary and name are in
+  the Keychain (this device only), not in backed-up preferences.
 - **Design.** Warm cream and forest green, light and dark palettes, bundled
   DM Sans + Newsreader fonts (SIL OFL, in `assets/fonts/`). Home has a
   greeting, quick tiles and module cards, and each module has an intro page.
@@ -61,8 +71,10 @@ background worker mirrors it to Supabase.
   `isar` 3.1.0 ships a 2023-era analyzer that can't parse Dart 3.12; the fork is
   a drop-in with the same API).
 - **Cloud:** Supabase — a single `items` table backs every screen. Deletes
-  are soft (tombstones) so they propagate. Conflicts resolve last-write-wins on
-  `updated_at`.
+  are soft (tombstones) so they propagate. A tombstone keeps only `uuid`,
+  `kind`, `updated_at` and `is_deleted`; the title, note, amount and other
+  content are cleared, and earlier activity-log entries for it lose their
+  title. Conflicts resolve last-write-wins on `updated_at`.
 - **State:** Riverpod. Each screen is a filtered stream over the one collection.
 - **Offline:** with no Supabase keys the app is a fully working local tracker;
   add keys later and it starts syncing.
@@ -115,6 +127,8 @@ On first launch the app imports `assets/seed/seed.json` if present. That file is
 **git-ignored** (it holds personal data). A fake [`seed.example.json`](assets/seed/seed.example.json)
 is committed to show the shape — copy it to `seed.json` and edit. The seed runs
 once (guarded by a marker) and uses deterministic IDs, so it never duplicates.
+Never host a web build made while `seed.json` exists: build the web app with
+`scripts/build_web.sh`, which refuses to run until the file is moved out.
 
 ## Shipping to real devices
 

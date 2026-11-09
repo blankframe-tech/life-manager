@@ -5,14 +5,12 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
-import '../models/history_event.dart';
-import '../models/item.dart';
 import '../services/backup_service.dart';
+import '../store/local_store.dart';
 import 'vault_codec.dart';
 
 export 'vault_codec.dart'
@@ -30,14 +28,14 @@ export 'vault_codec.dart'
 /// also written to the iOS Keychain, never to a plain file.
 class VaultService {
   VaultService(
-    this.isar, {
+    this.store, {
     required this.prefs,
     BackupService? backup,
     Future<Directory> Function()? documentsDir,
     FlutterSecureStorage? keychain,
     this.iterations = VaultCodec.defaultIterations,
     this.autoSaveDelay = const Duration(seconds: 2),
-  }) : backup = backup ?? BackupService(isar),
+  }) : backup = backup ?? BackupService(store),
        _documentsDir = documentsDir ?? getApplicationDocumentsDirectory,
        _keychain = keychain ?? _defaultKeychain;
 
@@ -53,7 +51,7 @@ class VaultService {
     ),
   );
 
-  final Isar isar;
+  final LocalStore store;
   final SharedPreferences prefs;
   final BackupService backup;
   final int iterations;
@@ -125,25 +123,29 @@ class VaultService {
   });
 
   /// Decrypts [file] and merges it into the local DB (newer local edits win).
-  /// If no passphrase is set yet, [passphrase] becomes the session passphrase.
+  ///
+  /// Only when [file] is this phone's own vault and no passphrase is set yet
+  /// does [passphrase] become the session passphrase (that is "unlock"). A
+  /// received file is just merged: its passphrase was chosen by someone else
+  /// and must never end up protecting, or replacing the remembered passphrase
+  /// for, everything on this phone.
   Future<ImportReport> openVault(
     File file,
     String passphrase, {
     bool remember = false,
   }) => _serial(() async {
     _checkPassphrase(passphrase);
-    final env = VaultCodec.parse(await file.readAsBytes());
+    final env = VaultCodec.parse(await _readVault(file));
     final key = await _keyFor(env.header, passphrase);
     final plain = await VaultCodec.decrypt(env, key);
     final report = await backup.importJson(utf8.decode(plain));
-    if (!isUnlocked) {
+    final isMain = file.absolute.path == (await vaultFile).absolute.path;
+    if (isMain && !isUnlocked) {
       await _startSession(passphrase, remember: remember);
       _createdAt = env.header.createdAt;
     }
     // Just merged our own file: the next auto-save needn't re-read it.
-    if (file.absolute.path == (await vaultFile).absolute.path) {
-      _knownModified = await _modified();
-    }
+    if (isMain) _knownModified = await _modified();
     return report;
   });
 
@@ -188,14 +190,40 @@ class VaultService {
   /// Whether a passphrase is remembered in the Keychain.
   Future<bool> get remembered => _keychainHas();
 
-  /// Ends the session: stops auto-save and drops the key from memory.
+  /// Ends the session: stops auto-save and zeroes the key in memory.
   /// [forget] also removes the passphrase from the Keychain.
   Future<void> lock({bool forget = false}) => _serial(() async {
     _stopAutoSave();
-    _passphrase = _salt = _key = null;
+    _wipeKey();
+    _passphrase = _salt = null;
     unlocked.value = false;
     if (forget) await _keychain.delete(key: _keychainKey);
   });
+
+  /// For "Delete all data": locks, forgets the Keychain passphrase and
+  /// deletes the vault file (and any half-written temp copy), so nothing can
+  /// merge the wiped data back on the next launch.
+  Future<void> destroy() async {
+    await lock(forget: true);
+    await _serial(() async {
+      final file = await vaultFile;
+      for (final f in [file, File('${file.path}.tmp')]) {
+        if (await f.exists()) await f.delete();
+      }
+      _knownModified = _createdAt = null;
+      lastSavedAt.value = null;
+      lastError.value = null;
+    });
+  }
+
+  /// The session key, for tests that check it gets zeroed.
+  @visibleForTesting
+  Uint8List? get debugKey => _key;
+
+  void _wipeKey() {
+    _key?.fillRange(0, _key!.length, 0);
+    _key = null;
+  }
 
   void dispose() {
     _stopAutoSave();
@@ -215,7 +243,13 @@ class VaultService {
     required bool remember,
   }) async {
     final salt = _randomBytes(VaultCodec.saltLength);
-    _key = await VaultCodec.deriveKeyInBackground(passphrase, salt, iterations);
+    final key = await VaultCodec.deriveKeyInBackground(
+      passphrase,
+      salt,
+      iterations,
+    );
+    _wipeKey(); // the old passphrase's key, after changePassphrase
+    _key = key;
     _salt = salt;
     _passphrase = passphrase;
     unlocked.value = true;
@@ -241,9 +275,7 @@ class VaultService {
       });
     }
 
-    _subs
-      ..add(isar.items.watchLazy().listen((_) => schedule()))
-      ..add(isar.historyEvents.watchLazy().listen((_) => schedule()));
+    _subs.add(store.changes.listen((_) => schedule()));
   }
 
   void _stopAutoSave() {
@@ -285,7 +317,7 @@ class VaultService {
   Future<void> _merge(String passphrase) async {
     final modified = await _modified();
     if (modified == null || modified == _knownModified) return;
-    final env = VaultCodec.parse(await (await vaultFile).readAsBytes());
+    final env = VaultCodec.parse(await _readVault(await vaultFile));
     final plain = await VaultCodec.decrypt(
       env,
       await _keyFor(env.header, passphrase),
@@ -293,6 +325,19 @@ class VaultService {
     await backup.importJson(utf8.decode(plain));
     _createdAt ??= env.header.createdAt;
     _knownModified = modified;
+  }
+
+  /// Larger than any real vault; refusing up front keeps a huge received
+  /// file from being read (and copied several times) into memory.
+  static const maxFileBytes = 64 * 1024 * 1024;
+
+  Future<Uint8List> _readVault(File file) async {
+    if (await file.length() > maxFileBytes) {
+      throw const VaultFormatException(
+        'That file is too large to be a Life Manager vault.',
+      );
+    }
+    return file.readAsBytes();
   }
 
   Future<Uint8List> _keyFor(VaultHeader h, String passphrase) async {

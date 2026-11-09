@@ -13,6 +13,10 @@ analyzer:
   exclude:
     # Isar-generated code intentionally uses experimental members.
     - "**/*.g.dart"
+    # Web-only model twins: the analyzer resolves conditional imports for the
+    # VM, where they clash with the Isar ones. `flutter test --platform chrome`
+    # and `flutter build web` type-check them instead.
+    - "lib/models/*_web.dart"
 
 linter:
   # The lint rules applied to this project can be customized in the

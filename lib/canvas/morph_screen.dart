@@ -104,7 +104,7 @@ class _MorphScreenState extends ConsumerState<MorphScreen> {
     if (p == null || !p.hasNewSections) return;
     setState(() => _busy = true);
     final written = await writeNewItems(
-      ref.read(isarProvider),
+      ref.read(storeProvider),
       ref.read(syncServiceProvider),
       p.items,
     );
