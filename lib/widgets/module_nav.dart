@@ -15,7 +15,10 @@ String moduleHeroTag(LifeModule m) => 'module-icon-${m.id}';
 void openModule(BuildContext context, WidgetRef ref, LifeModule m) {
   HapticFeedback.selectionClick();
   ref.read(lastModuleProvider.notifier).state = m.id;
-  final inNav = ref.read(appConfigProvider).navModules.any((n) => n.id == m.id);
+  // The canvas has no module tabs: there, every module opens as a page.
+  final inNav =
+      !ref.read(canvasProvider).active &&
+      ref.read(appConfigProvider).navModules.any((n) => n.id == m.id);
   if (inNav) {
     Navigator.of(context).popUntil((r) => r.isFirst);
     ref.read(currentTabProvider.notifier).state = m.id;

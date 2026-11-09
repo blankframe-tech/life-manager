@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:isar_community/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../models/canvas_text.dart';
 import '../models/history_event.dart';
 import '../models/item.dart';
 
@@ -24,7 +25,7 @@ Future<Isar> openLocalDb({Directory? documents, Directory? support}) async {
   if (migrating && !await newDb.exists()) await oldDb.copy(newDb.path);
 
   final isar = await Isar.open(
-    [ItemSchema, HistoryEventSchema],
+    [ItemSchema, HistoryEventSchema, CanvasTextSchema],
     directory: sup.path,
   );
 

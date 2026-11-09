@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../canvas/morph_screen.dart';
 import '../providers/providers.dart';
 import '../theme/app_theme.dart';
 import '../widgets/common.dart';
@@ -38,7 +39,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final _pages = PageController();
   final _name = TextEditingController();
   int _page = 0;
-  static const _count = 4;
+  static const _count = 5;
 
   @override
   void dispose() {
@@ -121,6 +122,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                       _page1(context),
                       _modulesPage(context, modules),
                       _privacyPage(context),
+                      _bringYourOwnPage(context),
                       _namePage(context),
                     ],
                   ),
@@ -291,6 +293,50 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ),
     ],
   );
+
+  /// The app adapts to how the user already manages things, instead of the
+  /// other way round.
+  Widget _bringYourOwnPage(BuildContext context) {
+    final shape = ref.watch(canvasProvider).blueprint;
+    return _pageFrame(
+      children: [
+        const SizedBox(height: 20),
+        const IconTile(
+          icon: CupertinoIcons.wand_stars,
+          accent: Accents.lavender,
+          size: 112,
+        ),
+        const SizedBox(height: 36),
+        Semantics(
+          header: true,
+          child: Text(
+            'Bring your\nown system',
+            textAlign: TextAlign.center,
+            style: context.text.displaySmall,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Text(
+          shape == null
+              ? 'A pinned note, a chat with yourself, a budget sheet: bring '
+                    'it in and the app takes its shape. Or skip, and start '
+                    'with the standard layout.'
+              : 'Done. Your app has ${shape.hasNav ? '${shape.tabs.length} tabs' : 'one page'}, '
+                    'shaped from what you brought. Add more any time.',
+          textAlign: TextAlign.center,
+          style: context.text.bodyLarge,
+        ),
+        const SizedBox(height: 22),
+        OutlinedButton.icon(
+          onPressed: () => Navigator.of(
+            context,
+          ).push(MaterialPageRoute(builder: (_) => const MorphScreen())),
+          icon: const Icon(CupertinoIcons.text_badge_plus),
+          label: Text(shape == null ? 'Bring in my notes' : 'Add more'),
+        ),
+      ],
+    );
+  }
 
   Widget _namePage(BuildContext context) => _pageFrame(
     children: [

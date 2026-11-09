@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../canvas/canvas_text_isar.dart';
 import '../config/supabase_config.dart';
 import '../data/seed_loader.dart';
 import '../main.dart';
@@ -52,7 +53,8 @@ Future<void> boot() async {
 
   // Local DB — the source of truth the UI renders from. Lives in Application
   // Support; Documents is visible in Files and holds only the encrypted vault.
-  final store = IsarStore(await openLocalDb());
+  final isar = await openLocalDb();
+  final store = IsarStore(isar);
 
   // One-time bootstrap from the bundled seed (if present). When Supabase is
   // configured this instead runs from AuthGate once a session exists — an
@@ -77,6 +79,7 @@ Future<void> boot() async {
         storeProvider.overrideWithValue(store),
         sharedPreferencesProvider.overrideWithValue(prefs),
         secureSettingsProvider.overrideWithValue(secure),
+        canvasTextProvider.overrideWithValue(IsarCanvasText(isar)),
       ],
       child: nativeApp(),
     ),
