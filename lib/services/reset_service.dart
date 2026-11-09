@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../data/seed_loader.dart';
 import '../store/local_store.dart';
+import '../vault/vault_service.dart';
 import 'sync_service.dart';
 
 /// Wipes everything and returns the app to a fresh-install state.
@@ -18,11 +19,14 @@ import 'sync_service.dart';
 ///     `supabase/allow_history_delete.sql`), so it runs first and aborts the
 ///     whole reset while everything is still intact
 ///  2. cloud items
-///  3. local DB
-///  4. seed marker, so the next launch doesn't re-import `seed.json`
-///  5. preferences
+///  3. the vault: lock, forget the Keychain passphrase, delete the file —
+///     before the DB, so auto-save can't write the emptied DB, and so the
+///     next launch can't merge everything back from it
+///  4. local DB
+///  5. seed marker, so the next launch doesn't re-import `seed.json`
+///  6. preferences
 class ResetService {
-  ResetService(this.store, this.prefs, this.sync);
+  ResetService(this.store, this.prefs, this.sync, {required this.vault});
 
   final LocalStore store;
   final SharedPreferences prefs;
@@ -30,6 +34,8 @@ class ResetService {
   /// Needed only to cut the realtime subscriptions for the duration of the
   /// wipe — see [SyncService.suspendRealtime].
   final SyncService sync;
+
+  final VaultService vault;
 
   SupabaseClient get _db => Supabase.instance.client;
 
@@ -96,6 +102,8 @@ class ResetService {
         rethrow;
       }
     }
+
+    await vault.destroy();
 
     final localItems = (await store.items()).length;
     final localHistory = (await store.history()).length;

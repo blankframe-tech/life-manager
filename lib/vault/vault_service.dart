@@ -123,25 +123,29 @@ class VaultService {
   });
 
   /// Decrypts [file] and merges it into the local DB (newer local edits win).
-  /// If no passphrase is set yet, [passphrase] becomes the session passphrase.
+  ///
+  /// Only when [file] is this phone's own vault and no passphrase is set yet
+  /// does [passphrase] become the session passphrase (that is "unlock"). A
+  /// received file is just merged: its passphrase was chosen by someone else
+  /// and must never end up protecting, or replacing the remembered passphrase
+  /// for, everything on this phone.
   Future<ImportReport> openVault(
     File file,
     String passphrase, {
     bool remember = false,
   }) => _serial(() async {
     _checkPassphrase(passphrase);
-    final env = VaultCodec.parse(await file.readAsBytes());
+    final env = VaultCodec.parse(await _readVault(file));
     final key = await _keyFor(env.header, passphrase);
     final plain = await VaultCodec.decrypt(env, key);
     final report = await backup.importJson(utf8.decode(plain));
-    if (!isUnlocked) {
+    final isMain = file.absolute.path == (await vaultFile).absolute.path;
+    if (isMain && !isUnlocked) {
       await _startSession(passphrase, remember: remember);
       _createdAt = env.header.createdAt;
     }
     // Just merged our own file: the next auto-save needn't re-read it.
-    if (file.absolute.path == (await vaultFile).absolute.path) {
-      _knownModified = await _modified();
-    }
+    if (isMain) _knownModified = await _modified();
     return report;
   });
 
@@ -194,6 +198,22 @@ class VaultService {
     unlocked.value = false;
     if (forget) await _keychain.delete(key: _keychainKey);
   });
+
+  /// For "Delete all data": locks, forgets the Keychain passphrase and
+  /// deletes the vault file (and any half-written temp copy), so nothing can
+  /// merge the wiped data back on the next launch.
+  Future<void> destroy() async {
+    await lock(forget: true);
+    await _serial(() async {
+      final file = await vaultFile;
+      for (final f in [file, File('${file.path}.tmp')]) {
+        if (await f.exists()) await f.delete();
+      }
+      _knownModified = _createdAt = null;
+      lastSavedAt.value = null;
+      lastError.value = null;
+    });
+  }
 
   void dispose() {
     _stopAutoSave();
@@ -281,7 +301,7 @@ class VaultService {
   Future<void> _merge(String passphrase) async {
     final modified = await _modified();
     if (modified == null || modified == _knownModified) return;
-    final env = VaultCodec.parse(await (await vaultFile).readAsBytes());
+    final env = VaultCodec.parse(await _readVault(await vaultFile));
     final plain = await VaultCodec.decrypt(
       env,
       await _keyFor(env.header, passphrase),
@@ -289,6 +309,19 @@ class VaultService {
     await backup.importJson(utf8.decode(plain));
     _createdAt ??= env.header.createdAt;
     _knownModified = modified;
+  }
+
+  /// Larger than any real vault; refusing up front keeps a huge received
+  /// file from being read (and copied several times) into memory.
+  static const maxFileBytes = 64 * 1024 * 1024;
+
+  Future<Uint8List> _readVault(File file) async {
+    if (await file.length() > maxFileBytes) {
+      throw const VaultFormatException(
+        'That file is too large to be a Life Manager vault.',
+      );
+    }
+    return file.readAsBytes();
   }
 
   Future<Uint8List> _keyFor(VaultHeader h, String passphrase) async {

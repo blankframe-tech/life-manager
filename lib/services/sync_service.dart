@@ -289,12 +289,34 @@ class SyncService {
   }
 
   /// Soft-delete: keep the row as a tombstone so the deletion syncs out.
+  ///
+  /// The tombstone keeps only what sync and merges need (uuid, kind,
+  /// updated_at, is_deleted); the content is cleared so a deleted entry
+  /// doesn't live on in exports and vault files. Being newest, it also
+  /// replaces older full copies on merge. [item] itself is left as it was,
+  /// so Undo can restore it with [save].
   Future<void> delete(Item item) async {
-    item.isDeleted = true;
-    item.updatedAt = DateTime.now().toUtc();
-    item.isSynced = false;
-    await store.putItems([item]);
-    await _logHistory(item, HistoryAction.deleted);
+    final tombstone = copyItem(item)
+      ..title = ''
+      ..note = ''
+      ..amount = null
+      ..direction = null
+      ..category = null
+      ..section = null
+      ..dueDate = null
+      ..isDeleted = true
+      ..updatedAt = DateTime.now().toUtc()
+      ..isSynced = false;
+    await store.putItems([tombstone]);
+    await _logHistory(tombstone, HistoryAction.deleted);
+    // Earlier events would still name it in the activity log and exports.
+    // Local only: the cloud log is append-only (no update policy), so these
+    // keep their isSynced flag rather than queueing an update it would refuse.
+    final named = [
+      for (final h in await store.history())
+        if (h.itemUuid == item.uuid && h.title.isNotEmpty) h..title = '',
+    ];
+    if (named.isNotEmpty) await store.putHistory(named);
     unawaited(pushPending());
   }
 

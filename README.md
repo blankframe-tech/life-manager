@@ -35,7 +35,11 @@ background worker mirrors it to Supabase.
   after every change while unlocked. "Remember on this iPhone" keeps the
   passphrase in the Keychain so the vault unlocks at launch. Opening a vault
   (picker, or tapping a `.lmvault` in Files / AirDrop) merges it with
-  last-write-wins, like sync. A lost passphrase can't be recovered. The format
+  last-write-wins, like sync. A received file's passphrase only opens that
+  file: if your own vault is locked you unlock it first, and if you have none
+  you set one up first. Files over 64 MB are refused. Delete all data also
+  deletes the vault file and forgets the remembered passphrase. A lost
+  passphrase can't be recovered. The format
   is written for a future browser version using WebCrypto only:
   [docs/VAULT_FORMAT.md](docs/VAULT_FORMAT.md), code in `lib/vault/`.
 - **Web.** The same UI runs in Safari, Firefox and Chrome as static files:
@@ -65,8 +69,10 @@ background worker mirrors it to Supabase.
   `isar` 3.1.0 ships a 2023-era analyzer that can't parse Dart 3.12; the fork is
   a drop-in with the same API).
 - **Cloud:** Supabase — a single `items` table backs every screen. Deletes
-  are soft (tombstones) so they propagate. Conflicts resolve last-write-wins on
-  `updated_at`.
+  are soft (tombstones) so they propagate. A tombstone keeps only `uuid`,
+  `kind`, `updated_at` and `is_deleted`; the title, note, amount and other
+  content are cleared, and earlier activity-log entries for it lose their
+  title. Conflicts resolve last-write-wins on `updated_at`.
 - **State:** Riverpod. Each screen is a filtered stream over the one collection.
 - **Offline:** with no Supabase keys the app is a fully working local tracker;
   add keys later and it starts syncing.

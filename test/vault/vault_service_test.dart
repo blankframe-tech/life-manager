@@ -64,7 +64,8 @@ void main() {
     final report = await vb.openVault(file, pass);
     expect(report.itemsAdded, 1);
     expect((await b.items.where().findAll()).single.title, 'Renew passport');
-    expect(vb.isUnlocked, isTrue);
+    expect(vb.isUnlocked, isFalse,
+        reason: 'another file\'s passphrase never becomes this phone\'s');
   });
 
   test('open with the wrong passphrase fails and imports nothing', () async {
