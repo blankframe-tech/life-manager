@@ -75,11 +75,18 @@ Future<void> boot() async {
         storeProvider.overrideWithValue(store),
         sharedPreferencesProvider.overrideWithValue(prefs),
       ],
-      child: const LifeManagerApp(
-        home: AppLockGate(
-          child: VaultGate(child: OnboardingGate(child: AuthGate())),
-        ),
-      ),
+      child: nativeApp(),
     ),
   );
 }
+
+/// The native widget tree under the ProviderScope (tests pump this too).
+/// The app lock wraps the root Navigator, so it covers every pushed page,
+/// dialog and sheet, not only the first route.
+Widget nativeApp() => const LifeManagerApp(
+  builder: _appLock,
+  home: VaultGate(child: OnboardingGate(child: AuthGate())),
+);
+
+Widget _appLock(BuildContext context, Widget? child) =>
+    AppLockGate(child: child!);
