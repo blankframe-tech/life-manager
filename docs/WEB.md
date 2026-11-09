@@ -125,8 +125,10 @@ What it does not protect against:
   real defence.
 - **Memory inspection while unlocked.** The passphrase stays in memory for
   the session (needed to merge a file the iPhone re-saved with a new salt).
-  On lock the key bytes are zeroed and everything is released to the
-  garbage collector; JavaScript can't wipe strings on demand.
+  On lock the app zeroes its own copy of the key bytes (and any key it
+  re-derives on open) and releases everything to the garbage collector.
+  JavaScript can't wipe strings on demand, and copies held inside the
+  crypto library or the browser are not wiped.
 - **Downloads.** Safari / Firefox Sync puts the encrypted file in your
   Downloads folder. It is ciphertext, but delete old copies you don't need.
 

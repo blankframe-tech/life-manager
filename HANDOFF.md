@@ -152,8 +152,9 @@ It's a plain log of money in and out — deliberately separate from Budget (a
   `test/txn_test.dart` covers it, plus the screen itself via an overridden
   `itemsProvider` stream (no Isar needed for a widget test).
 - **Categories are per-device**, in SharedPreferences
-  (`lib/services/txn_category_service.dart`), same as salary and the budget
-  split — they do *not* sync. Because a transaction stores the category as
+  (`lib/services/txn_category_service.dart`), same as the budget split
+  (salary and name are per-device too, but in the Keychain) — they do *not*
+  sync. Because a transaction stores the category as
   text, a category deleted here (or created on another device) still displays
   and still counts in the rollup; `mergeUsedCategories` is what keeps such
   strays in the picker so editing an old row can't silently retag it. Manage
@@ -229,7 +230,7 @@ keystore is outstanding.
 | 1 | No nonce on the Google ID-token exchange (replay) | `AuthService` generates a 256-bit CSPRNG nonce, hands it to `GoogleSignIn.initialize` and the same value to `signInWithIdToken` |
 | 2 | Refresh token in plaintext SharedPreferences | `SecureLocalStorage` / `SecureGotrueAsyncStorage` (`lib/services/secure_session_storage.dart`) move it to Keychain / Keystore, migrating any existing plaintext session on first launch |
 | 3 | Release builds signed with the debug key | `android/app/build.gradle.kts` reads `android/key.properties`; falls back to the debug key with a loud warning |
-| 4 | Backups could copy the DB and token off-device | `allowBackup="false"` + `res/xml/data_extraction_rules.xml` on Android; `excludeLocalDatabaseFromBackup()` in `AppDelegate.swift` for iCloud |
+| 4 | Backups could copy the DB and token off-device | `allowBackup="false"` + `res/xml/data_extraction_rules.xml` on Android; `excludeLocalDatabaseFromBackup()` in `AppDelegate.swift` for iCloud, run at launch and on every move to the background (a fresh install's DB is created after launch); salary and name live in the Keychain (`SecureSettings` in `settings_service.dart`), moved out of SharedPreferences on first launch |
 | 5 | No app lock over an unencrypted local DB | Optional biometric/passcode lock — Settings → Security. Isar 3 has no encryption support, so this is the available mitigation, not a substitute. `AppLockGate` wraps the root Navigator (`MaterialApp.builder` in `boot_native.dart`), so pages, dialogs and sheets opened on top are covered too. Turning the lock off and Export data (plaintext JSON) each ask for the prompt again. `SceneDelegate.swift` covers the window natively while the app is inactive, so the App Switcher card shows the launch screen, not data |
 | 6 | Any Google account could sign up | `supabase/restrict_signups.sql` (allowlist + `auth.users` trigger) — **ran 2026-08-11**, plus "Allow new users to sign up" turned off in the dashboard |
 | 7 | Raw exception strings shown in the UI | `describeSyncError` (`sync_service.dart`) and `AuthService.describeAuthError` return summaries; detail only in debug builds |
@@ -419,9 +420,10 @@ the confirmation in `lib/widgets/delete_everything_dialog.dart`.
 
 Wipes items and history from the local DB **and the cloud**, deletes the
 vault file (`Documents/LifeManager.lmvault` and its `.tmp`) and forgets the
-Keychain passphrase, clears every preference (salary, split, theme, app lock),
-and signs out — back to the sign-in screen as on a fresh install. Copies of
-the vault elsewhere (iCloud Drive, a browser) are not touched.
+Keychain passphrase, clears every preference (salary, split, theme, app lock)
+plus the Keychain-held salary and name, and signs out — back to the sign-in
+screen as on a fresh install. Copies of the vault elsewhere (iCloud Drive, a
+browser) are not touched.
 
 **⚠️ Requires `supabase/allow_history_delete.sql` to have been run.** That
 script adds an owner-scoped DELETE policy to `history_events`, which until now

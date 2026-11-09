@@ -8,6 +8,12 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     excludeLocalDatabaseFromBackup()
+    // On a fresh install Isar creates the DB after this point, so mark it
+    // again whenever the app leaves the foreground, before any backup runs.
+    // The notification also fires under the scene lifecycle this app uses.
+    NotificationCenter.default.addObserver(
+      forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main
+    ) { [weak self] _ in self?.excludeLocalDatabaseFromBackup() }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
@@ -17,11 +23,12 @@ import UIKit
   /// Documents is visible in Files and holds only the encrypted vault) and
   /// holds real financial figures with no encryption at rest — Isar 3 has no
   /// encryption support — so allowing the platform to copy it off-device is the
-  /// iOS counterpart of `android:allowBackup="true"`. Nothing is lost by
-  /// opting out: a restored device signs in and re-syncs from Supabase.
+  /// iOS counterpart of `android:allowBackup="true"`. The way back after a
+  /// restore is the encrypted vault in Documents (which is backed up), not
+  /// the raw DB; cloud sync is off in this version.
   ///
-  /// Runs on every launch because the flag is per-file and the files are
-  /// created by Isar after the first launch, not by us.
+  /// Runs on every launch and on every move to the background, because the
+  /// flag is per-file and Isar creates the files from Dart after launch.
   private func excludeLocalDatabaseFromBackup() {
     guard let support = FileManager.default.urls(
       for: .applicationSupportDirectory, in: .userDomainMask
