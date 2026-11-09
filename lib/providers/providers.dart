@@ -32,7 +32,16 @@ final lastModuleProvider = StateProvider<String?>((ref) => null);
 /// The morphed canvas: the shape compiled from the user's own notes. While
 /// it is active the shell draws it instead of the module layout.
 final canvasProvider = StateNotifierProvider<CanvasNotifier, CanvasState>(
-  (ref) => CanvasNotifier(ref.watch(sharedPreferencesProvider)),
+  (ref) => CanvasNotifier(
+    ref.watch(sharedPreferencesProvider),
+    ref.watch(canvasTextProvider),
+  ),
+);
+
+/// Where the canvas keeps headings and file names. The app overrides it with
+/// the Isar-backed store in `main()`; tests keep the in-memory default.
+final canvasTextProvider = Provider<CanvasTextStore>(
+  (ref) => CanvasTextStore(),
 );
 
 /// The canvas's selected tab, by tab id.

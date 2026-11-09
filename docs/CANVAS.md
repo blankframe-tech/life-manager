@@ -39,7 +39,7 @@ Everything runs on the phone. No model, no network.
               ▼
    layout(sections, overrides)  (lib/canvas/blueprint.dart)
               │
-           Blueprint  ──► saved in SharedPreferences ──► CanvasShell draws it
+           Blueprint  ──► shape in SharedPreferences, words in Isar ──► CanvasShell draws it
 ```
 
 ### Memory instead of computation
@@ -55,8 +55,18 @@ Everything runs on the phone. No model, no network.
 - Adding the same note again is recognised by its hash and skipped.
 - A re-import writes only rows the database does not have, so edits, ticks
   and deletes made since are kept (uuids are v5 over section id + line).
-- The raw text is **not** stored. Its rows are already in Isar (so in
-  backups and the encrypted vault); SharedPreferences is plaintext.
+- The raw text is **not** stored. Its rows are already in Isar (so in the
+  encrypted vault).
+- SharedPreferences (plaintext NSUserDefaults, which iOS backs up) gets only
+  the shape: section ids, types, kinds, order and domains, under
+  `canvas_state_v1`. The user's own words (file names, headings and
+  renames) are a single `CanvasText` row in Isar, which is excluded from
+  backups (`lib/models/canvas_text.dart`). A launch joins the two; a state
+  saved by an older build is split on its first load.
+- Saves are queued as async Isar writes (so they wait behind any other write
+  in progress), and prefs change only after the words are stored. A failed
+  write is logged and keeps the last saved state; an unreadable DB at launch
+  shows the classic layout for that launch.
 
 ### Rows are ordinary items
 
@@ -153,8 +163,8 @@ the shape and keeps every row.
 
 ## Known limits / next
 
-- The blueprint lives in SharedPreferences, not in the vault or backup
-  file. Restoring a vault on a new phone brings the rows back (into the
+- The blueprint lives in SharedPreferences and Isar, not in the vault or
+  backup file. Restoring a vault on a new phone brings the rows back (into the
   classic screens) but not the shape.
 - `Shaper.version` is saved but nothing re-shapes old imports when the rules
   change (the raw text is gone by design). A re-import of the same text after
