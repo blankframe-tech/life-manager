@@ -1,3 +1,5 @@
+Frozen until the owner moves it to GTM: personal tool outside the November bet; only security fixes (LM-1 waits on the owner's go), LEARNINGS.md and a demo page. Call source: `~/Everything/dev/products/decision.md` (November bet, default A).
+
 # AGENTS.md — Life Manager
 
 Flutter app, iOS-first. Isar local DB, Riverpod. Data stays on the device;
